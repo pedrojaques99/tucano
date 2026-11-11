@@ -13,6 +13,8 @@ on:
       tag:
         description: Release tag to attach the Linux files to (e.g. v0.2.0)
         required: true
+  push:
+    branches: [visant/build] # the fork's test builds, kept as artifacts
   pull_request:
     paths:
       - package.json

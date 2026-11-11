@@ -1,0 +1,53 @@
+# A test build of the Mac app, for Apple silicon and Intel: a .dmg and a .zip each,
+# kept as run artifacts. Not a release: no Developer ID, no notarization (that's
+# scripts/release.sh, on a Mac with the keychain). The app is ad-hoc signed only, so
+# the first open needs right-click > Open (or xattr -dr com.apple.quarantine).
+name: Mac
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [visant/build]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/whisper.mjs mac ${{ matrix.arch }} # dictation's whisper-cli, packed in the app
+      - name: Build the .dmg and the .zip (ad-hoc signed, not notarized)
+        run: |
+          npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never \
+            --config.directories.output=dist-mac \
+            --config.mac.identity=- \
+            --config.mac.notarize=false \
+            '--config.artifactName=tucano-mac-${arch}.${ext}'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: ls -la dist-mac
+      - name: Keep the files
+        uses: actions/upload-artifact@v7
+        with:
+          name: tucano-mac-${{ matrix.arch }}
+          path: |
+            dist-mac/tucano-mac-*.dmg
+            dist-mac/tucano-mac-*.zip
+          retention-days: 7

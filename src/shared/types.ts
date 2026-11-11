@@ -589,6 +589,7 @@ export interface BrowserView {
 export interface Quota {
   fiveHour?: { utilization: number; resetsAt: number } // 0..1, ms
   sevenDay?: { utilization: number; resetsAt: number }
+  others?: { key: string; utilization: number; resetsAt: number }[] // any other window the CLI names (per model, say), as it names it
   at: number
 }
 

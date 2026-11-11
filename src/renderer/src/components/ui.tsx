@@ -4,6 +4,8 @@ import { examples, type AvatarDefinition } from 'open-bot-avatar'
 import { mountAvatar, type AvatarOptions, type MountedAvatar } from 'open-bot-avatar/dom'
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react'
 import type { Agent, AgentColor } from '../store'
+import { ENGINES, type EngineId } from '../../../shared/types'
+import { ENGINE_LOGOS } from '../engine-logos'
 import gallery from '../assets/bot-avatars.json'
 
 const PATHS: Record<string, ReactNode> = {
@@ -365,5 +367,22 @@ export function NumberInput({ value, onChange, ...rest }: { value: number; onCha
         if (e.target.value.trim() !== '' && Number.isFinite(n)) onChange(n)
       }}
     />
+  )
+}
+
+// A harness's official mark on its brand color (engine-logos.ts), or its initial where there's no mark
+// (Grok). The one way the app shows a harness: the introduction, Settings, the model picker, usage.
+export function EngineMark({ engine, size = 44 }: { engine: EngineId; size?: number }): ReactNode {
+  const logo = ENGINE_LOGOS[engine]
+  return (
+    <span className={`engine-mark ${logo?.hex === '211E1B' || !logo ? 'engine-mark--ink' : ''}`} style={{ width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.24)), ...(logo ? { background: `#${logo.hex}` } : { fontSize: Math.round(size * 0.42) }) }} aria-hidden>
+      {logo ? (
+        <svg viewBox="0 0 24 24" width={Math.round(size * 0.56)} height={Math.round(size * 0.56)} fill="currentColor">
+          <path d={logo.path} />
+        </svg>
+      ) : (
+        ENGINES[engine].label[0]
+      )}
+    </span>
   )
 }

@@ -26,7 +26,7 @@ const settle = (win, ms = 500) => win.waitForTimeout(ms)
 // What this computer's Claude Code has (its tools and skills) stays out of the screenshots' install.
 const untick = async (win) => {
   await win.waitForTimeout(800)
-  while ((await win.locator('.intro-checkbox input:checked').count()) > 0) await win.locator('.intro-checkbox input:checked').first().uncheck()
+  while ((await win.locator('.intro-bring .toggle.is-on').count()) > 0) await win.locator('.intro-bring .toggle.is-on').first().click()
 }
 const skipSplash = async (win) => {
   await win.waitForSelector('.splash')
@@ -302,3 +302,4 @@ const skipSplash = async (win) => {
 }
 
 console.log('erros:', errors)
+if (errors.length) process.exitCode = 1 // a page error fails the run (onboarding-gate.mjs reads it)

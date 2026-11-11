@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sleeping toucan shows on the dark theme.** The empty Approvals page (and For you, with a team) draws a sleeping toucan whose body was a fixed near-black, so on the dark theme only its closed eyes and beak floated on the page. Its body now takes the text color and its eyes the panel color, so it reads on both themes.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

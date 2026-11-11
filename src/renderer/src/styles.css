@@ -7591,6 +7591,25 @@ kbd {
   .cal__scroll {
     min-width: 640px;
   }
+  /* The empty week's card spans what's on screen, not the 640px week, and its templates wrap. */
+  .cal__empty {
+    left: 8px;
+    right: 8px;
+    transform: translateY(-50%);
+  }
+  .cal__empty > div {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  /* A routine's "When it runs": the three choices wrap inside their buttons instead of overflowing. */
+  .segmented--wide button {
+    min-width: 0;
+    white-space: normal;
+  }
+  /* The row of weekdays doesn't share a line with the time: the time goes under it. */
+  .routine-form .grid2:has(.routine-days) {
+    grid-template-columns: minmax(0, 1fr);
+  }
   /* Rows with an address: no harness tags, so the name and the button fit. */
   .from-harness__row .tag {
     display: none;

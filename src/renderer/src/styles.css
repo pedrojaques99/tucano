@@ -1131,6 +1131,13 @@ h3 {
   font-size: 15px;
   margin-top: 4px;
 }
+/* The body follows the text color, so it reads on both themes; the closed eyes are cut out of it. */
+.sleeping-toucan__body {
+  fill: var(--text);
+}
+.sleeping-toucan__eye {
+  stroke: var(--panel);
+}
 .sleeping-toucan__z {
   fill: var(--text-3);
   font-family: var(--font);

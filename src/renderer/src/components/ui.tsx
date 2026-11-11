@@ -191,12 +191,12 @@ export function useJustEnded(on: boolean, ms: number): boolean {
 export function SleepingToucan({ size = 120 }: { size?: number }): ReactNode {
   return (
     <svg className="sleeping-toucan" width={size} height={size} viewBox="0 0 200 200" aria-hidden>
-      <rect x="20" y="56" width="96" height="96" rx="30" fill="#1d1a16" />
+      <rect className="sleeping-toucan__body" x="20" y="56" width="96" height="96" rx="30" />
       <path d="M102 78 C 132 62, 172 66, 190 92 C 193 97, 190 103, 184 104 C 160 108, 130 114, 106 124 C 100 110, 98 92, 102 78 Z" fill="#FF8C24" />
       <path d="M106 103 C 130 101, 160 99, 186 100 C 175 104, 140 110, 106 124 Z" fill="#E5531F" />
-      <path d="M190 92 C 193 97, 190 103, 184 104 C 179 104.8, 175 105.4, 171 106 C 175 99, 182 93, 190 92 Z" fill="#1d1a16" />
-      <path d="M51 98 C 55 103, 61 103, 65 98" stroke="#fff" strokeWidth="4" strokeLinecap="round" fill="none" />
-      <path d="M75 98 C 79 103, 85 103, 89 98" stroke="#fff" strokeWidth="4" strokeLinecap="round" fill="none" />
+      <path className="sleeping-toucan__body" d="M190 92 C 193 97, 190 103, 184 104 C 179 104.8, 175 105.4, 171 106 C 175 99, 182 93, 190 92 Z" />
+      <path className="sleeping-toucan__eye" d="M51 98 C 55 103, 61 103, 65 98" strokeWidth="4" strokeLinecap="round" fill="none" />
+      <path className="sleeping-toucan__eye" d="M75 98 C 79 103, 85 103, 89 98" strokeWidth="4" strokeLinecap="round" fill="none" />
       <text className="sleeping-toucan__z" x="112" y="58" fontSize="22" fontWeight="600">z</text>
       <text className="sleeping-toucan__z sleeping-toucan__z--2" x="128" y="40" fontSize="30" fontWeight="600">z</text>
     </svg>

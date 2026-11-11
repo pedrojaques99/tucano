@@ -5,7 +5,7 @@ import { L, locale } from '../shared/lang'
 import { friendly, toolLabel } from '../shared/errors'
 import type { CoreEvent } from '../shared/rpc'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { ACCESS_REQUEST, CACHE_READ_WEIGHT, describeSchedule, workIn, ENGINES, ERRORS_STOP, usable, modelInfo, PENDING_WAIT_MINUTES, REPEAT_STOP, REPEAT_WARN, SAME_TOOL_STOP, SAME_TOOL_WARN, SLEEPS_FREE, SLEEPS_STOP, RUN_BUDGET_PCT, RUN_STALL_MINUTES, chainDepthCap, IMAGE_MIMES, MAX_IMAGE_BYTES, MAX_IMAGES_PER_MESSAGE, MAX_FILE_BYTES, MAX_FILES_PER_MESSAGE, type FileUpload, type Account, type Agent, type Approval, type Artifact, type ImageUpload, type Connector, type ConnectorTool, type Conversation, type EngineId, type Message, type Quota, type Receipt, type Person, type Question, type Routine, type Run, type RunStatus, type Settings, type Step, delegating, wikiAccess, MAX_PROPOSALS, proposalKey, proposalsOf } from '../shared/types'
+import { ACCESS_REQUEST, CACHE_READ_WEIGHT, describeSchedule, workIn, ENGINES, ERRORS_STOP, usable, modelInfo, PENDING_WAIT_MINUTES, REPEAT_STOP, REPEAT_WARN, SAME_TOOL_STOP, SAME_TOOL_WARN, SLEEPS_FREE, SLEEPS_STOP, RUN_BUDGET_PCT, RUN_STALL_MINUTES, chainDepthCap, IMAGE_MIMES, MAX_IMAGE_BYTES, MAX_IMAGES_PER_MESSAGE, MAX_FILE_BYTES, MAX_FILES_PER_MESSAGE, type FileUpload, type Account, type Agent, type Approval, type Artifact, type ImageUpload, type Connector, type ConnectorTool, type Conversation, type EngineId, type Message, type Quota, type Receipt, type Reserve, MAX_MORE_RESERVES, type Person, type Question, type Routine, type Run, type RunStatus, type Settings, type Step, delegating, wikiAccess, MAX_PROPOSALS, proposalKey, proposalsOf } from '../shared/types'
 import { BUSCAR_THREADS, clock, HISTORY_LIMIT, LER_THREAD, liveContext, mentioned, NO_LIVE, snip, systemPrompt, transcript, transcriptBlocks, type GitHubAccess, type PromptOpts } from './context'
 import { BUSCAR_MEMORIAS, contextWindow, LEMBRAR, searchThreads, type Memories } from './memory'
 import { WIKI_TOOL_NAMES, WIKI_TOOLS, wikiCall, type Wiki } from './wiki'
@@ -329,6 +329,16 @@ export function routedHistory(db: Pick<Db, 'message'>, windowed: Message[], anch
   const since = windowed.filter((m) => m.at > anchor.at && m.id !== self && m.author.kind === 'agent' && earlier(m))
   return [...before, ...since, anchor]
 }
+
+// The agent's reserves, in order: the first one (fallbackModelId on fallbackAccountId), then moreReserves.
+export function reserveChain(agent: Pick<Agent, 'fallbackModelId' | 'fallbackAccountId' | 'moreReserves'>): Reserve[] {
+  if (!agent.fallbackModelId) return []
+  return [{ modelId: agent.fallbackModelId, ...(agent.fallbackAccountId ? { accountId: agent.fallbackAccountId } : {}) }, ...(agent.moreReserves ?? []).slice(0, MAX_MORE_RESERVES)]
+}
+
+// A model on a login, by what it resolves to ('sonnet' and 'claude:sonnet' are one): the same model on another
+// account is another try, since the limit is the account's.
+const loginKey = (engine: EngineId, model: string, account: Pick<Account, 'id'> | undefined): string => `${engine}:${model}@${account?.id ?? ''}`
 
 export class Runner {
   private queue: { job: () => Promise<unknown>; urgent: boolean }[] = []
@@ -880,18 +890,23 @@ export class Runner {
     }
   }
 
-  // The agent's reserve model, when it has one that can run now: another model, on a harness that's ready.
-  // The agent's reserve, when it can take the reply: its model, and the account it runs on (unset: its harness's
-  // usual login). None when it's the very login and model that just ran out, or when its login isn't ready.
-  private reserveFor(agent: Agent, settings: Settings, from: Account | undefined): { model: NonNullable<ReturnType<typeof modelInfo>>; account?: Account } | undefined {
-    const model = agent.fallbackModelId ? modelInfo(agent.fallbackModelId) : undefined
-    if (!model?.id) return undefined
-    // An account of another harness (the reserve's model changed since) means the usual login, like the agent's own.
-    const account = agent.fallbackAccountId ? settings.accounts?.find((a) => a.id === agent.fallbackAccountId && a.engine === model.engine) : undefined
-    if (agent.fallbackModelId === agent.modelId && account?.id === from?.id) return undefined
-    const status = settings.engines[model.engine]
-    if (!status?.installed || (account ? !account.loggedIn : !status.loggedIn)) return undefined
-    return { model, account }
+  // The next reserve that can take the reply, from `start` on in the agent's chain: its model, the account it runs on
+  // (unset: its harness's usual login), and where it is in the chain. Skipped: one whose login isn't ready, and one
+  // that is a model and login already tried in this reply (`tried`: the one that just ran out among them).
+  private reserveFor(agent: Agent, settings: Settings, start: number, tried: Set<string>): { model: NonNullable<ReturnType<typeof modelInfo>>; modelId: string; account?: Account; index: number } | undefined {
+    const chain = reserveChain(agent)
+    for (let index = start; index < chain.length; index++) {
+      const r = chain[index]!
+      const model = modelInfo(r.modelId)
+      if (!model?.id) continue
+      // An account of another harness (the reserve's model changed since) means the usual login, like the agent's own.
+      const account = r.accountId ? settings.accounts?.find((a) => a.id === r.accountId && a.engine === model.engine) : undefined
+      if (tried.has(loginKey(model.engine, model.id, account))) continue
+      const status = settings.engines[model.engine]
+      if (!status?.installed || (account ? !account.loggedIn : !status.loggedIn)) continue
+      return { model, modelId: r.modelId, account, index }
+    }
+    return undefined
   }
 
   // Every reply counts while it runs, wherever it came from. A hand-off that reached this agent meanwhile
@@ -929,7 +944,8 @@ export class Runner {
     const model = modelInfo(agent.modelId)
     // The model this reply runs on: the agent's, or its reserve once the main one's subscription is out.
     let modelId = agent.modelId
-    let onReserve = false // the reserve takes a reply once
+    let nextReserve = 0 // where in the agent's reserve chain the next try starts; each reserve takes a reply once
+    const tried = new Set<string>() // the models and logins that ran out in this reply
     let modelName = model?.id ?? agent.modelId
     let engineId: EngineId = model?.engine ?? 'claude'
     let engineLabel = `${ENGINES[engineId].label} · ${model?.label ?? agent.modelId}`
@@ -2153,19 +2169,20 @@ ${note}`,
           error = e instanceof Error ? e.message : String(e)
           thrown = e
         }
-        // The main model's subscription is out before it did anything: the same reply goes to the reserve, once.
-        // After a tool call it doesn't, since that would run the call again; the next reply starts on the main model.
-        const reserve = !onReserve && !result && error && !control.reason && !acted && !questions && !approval && (!msg.text.trim() || outOfQuota(msg.text)) && outOfQuota(error) ? this.reserveFor(agent, settings, account) : undefined
+        // The main model's subscription is out before it did anything: the same reply goes to the next reserve in the
+        // chain that is ready, each one once. After a tool call it doesn't, since that would run the call again; the next reply starts on the main model.
+        const reserve = !result && error && !control.reason && !acted && !questions && !approval && (!msg.text.trim() || outOfQuota(msg.text)) && outOfQuota(error) ? this.reserveFor(agent, settings, nextReserve, tried.add(loginKey(engineId, modelName, account))) : undefined
         if (!reserve) break
         const from = `${engineLabel}${account ? ` (${account.name})` : ''}`
         flush()
         msg.text = '' // the CLI's own "you've hit your limit", when it wrote it as text
-        // The reserve starts from the whole conversation: the session stays with the main model.
-        lost = plan
+        // The reserve starts from the whole conversation: the session stays with the main model. Only the main
+        // model has one, so a second reserve keeps the one given up on at the first (it still has to be ended).
+        if (plan) lost = plan
         plan = undefined
         input = whole
-        onReserve = true
-        modelId = agent.fallbackModelId!
+        nextReserve = reserve.index + 1
+        modelId = reserve.modelId
         modelName = reserve.model.id
         engineId = reserve.model.engine
         engineLabel = `${ENGINES[engineId].label} · ${reserve.model.label}`

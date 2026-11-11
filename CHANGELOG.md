@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added
+
+- **An agent keeps answering through a chain of reserves.** One reserve covered one more login: when the main model ran out of quota, the reply went to the reserve once, and failed if that was out too. Now up to 3 more come after the first, each a model and, optionally, one of its harness's accounts: Claude Code on two accounts, then Antigravity, then OpenCode, say, keep an agent answering through a whole day of 5-hour and weekly windows. The reply moves to the next one that's ready, each tried once, skipping a login that isn't signed in or was already tried; never after a tool call, and the next reply starts on the main model again, as before. The agent's page lists them under the first reserve, with **Another reserve, if this one runs out too**, which starts on a login not in the chain yet (another program, else another account) or says how to get one, and warns about a reserve that would be skipped.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

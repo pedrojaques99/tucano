@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **A connector's tool list keeps its On toggle on a phone.** The list had fixed columns for the class, High risk and On, and a tool-name column that wouldn't shrink, so at phone width the toggles were cut in half past the edge of the connector's window. On a phone the columns are narrower and a long tool name wraps.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

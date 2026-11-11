@@ -58,6 +58,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **An OpenCode reply makes one model call, not two.** OpenCode named each new session with a second call (its title agent), and every turn is a new session whose title the app never shows: it only spent tokens on a paid provider, the free models' quota, and on an OpenAI-compatible agent endpoint a whole extra agent turn. It's off now, on OpenCode 1.x and 2.x.
+### Added
+
+- **An agent keeps answering through a chain of reserves.** One reserve covered one more login: when the main model ran out of quota, the reply went to the reserve once, and failed if that was out too. Now up to 3 more come after the first, each a model and, optionally, one of its harness's accounts: Claude Code on two accounts, then Antigravity, then OpenCode, say, keep an agent answering through a whole day of 5-hour and weekly windows. The reply moves to the next one that's ready, each tried once, skipping a login that isn't signed in or was already tried; never after a tool call, and the next reply starts on the main model again, as before. The agent's page lists them under the first reserve, with **Another reserve, if this one runs out too**, and warns about one that would be skipped.
 
 ## [0.2.27] - 2026-11-10
 

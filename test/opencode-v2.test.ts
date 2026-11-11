@@ -17,7 +17,7 @@ describe('opencode v2', () => {
     const c = opencodeV2Config({ system: 'Você é a Iris.', mcpUrl: 'http://127.0.0.1:1/mcp/x', web: false }, { provider: { acme: {} } })
     expect(c['tools']).toEqual({ '*': false, 'tucano_*': true, webfetch: false, websearch: false })
     expect(c['mcp']).toEqual({ servers: { tucano: { type: 'remote', url: 'http://127.0.0.1:1/mcp/x', disabled: false } } })
-    expect(c['agents']).toEqual({ tucano: { system: 'Você é a Iris.' } })
+    expect(c['agents']).toEqual({ tucano: { system: 'Você é a Iris.' }, title: { disabled: true } })
     expect(c['update']).toBe('disable')
     expect(c['snapshots']).toBe(false)
     expect(c['share']).toBe('disabled')

@@ -5,7 +5,7 @@ import { App } from './App'
 import { ServerBar } from './components/Servers'
 import { start, useStore } from './store'
 import '@fontsource-variable/inter/opsz.css'
-import '@fontsource-variable/nunito/wght.css' // the first run's headings
+import '@fontsource-variable/bricolage-grotesque/wght.css' // headings, as on tucano.sh
 import './styles.css'
 
 void start()

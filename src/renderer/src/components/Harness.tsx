@@ -36,7 +36,7 @@ import {
   type HarnessMcp,
   type Settings
 } from '../store'
-import { Icon } from './ui'
+import { EngineMark, Icon } from './ui'
 import { EngineProblem } from './EngineProblem'
 import { Select } from './Select'
 
@@ -120,7 +120,7 @@ export function ModelPicker({ value, onChange, engines, jev }: { value: string; 
 
   // Engine/harness choices for the first pick.
   const engineOptions = useMemo(
-    () => [...choices.map((e) => ({ value: e, label: ENGINES[e].label })), ...(jev ? [{ value: 'jev', label: 'TypeSafe · Jev' }] : [])],
+    () => [...choices.map((e) => ({ value: e, label: ENGINES[e].label, icon: <EngineMark engine={e} size={18} /> })), ...(jev ? [{ value: 'jev', label: 'TypeSafe · Jev' }] : [])],
     [choices, jev]
   )
   // The models, grouped by provider (part before "/", or before ":") when there's more than one;
@@ -244,6 +244,7 @@ function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: Engi
         <button id={checkId} className={`harness__check ${picked ? 'is-on' : ''}`} disabled={!!st.soon || !st.installed} onClick={toggle} aria-label={L(`Usar o ${ENGINES[engine].label}`, `Use ${ENGINES[engine].label}`)}>
           {picked && <Icon name="check" size={12} />}
         </button>
+        <EngineMark engine={engine} size={32} />
         {/* The name is the check's label: a click on it is a click on the check, disabled when it is. */}
         <label className="grow harness__name" htmlFor={checkId}>
           <strong>{ENGINES[engine].label}</strong>

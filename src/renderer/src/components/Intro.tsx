@@ -7,7 +7,7 @@
 import { L } from '../../../shared/lang'
 import { CATALOG, entryOf } from '../../../shared/connector-catalog'
 import { agentModel, aiState, autonomyChosen, isFastModel, backgroundModel, FIRST_AUTONOMY, GOALS, goalForText, needsSignIn, storedAutonomy, type Goal } from '../../../shared/onboarding'
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ENGINES,
   ENGINE_IDS,
@@ -62,12 +62,13 @@ import { Modal } from './Modal'
 import { AutonomyPick } from './AutonomyPick'
 import { EngineProblem } from './EngineProblem'
 import { explainEngineError } from '../../../shared/engine-errors'
-import { ENGINE_LOGOS } from '../engine-logos'
-import { AgentAvatar, Icon, MeAvatar, TucaMark } from './ui'
+import { AgentAvatar, EngineMark, Icon, MeAvatar, TucaMark } from './ui'
 
 // The opening plays once per run of the app, not again when the language changes.
 let opened = false
 
+// Guided: the tour, the missions and the sidebar that grows. Short: none of it, the whole app at once.
+type Path = 'guided' | 'short'
 type Step = 'welcome' | 'ai' | 'goal' | 'agent' | 'adjust' | 'manual'
 const DOT: Record<Step, number> = { welcome: 0, ai: 1, goal: 2, agent: 3, adjust: 3, manual: 3 }
 
@@ -88,6 +89,7 @@ export function Intro(): ReactNode {
   const onOpened = useCallback(() => ((opened = true), setOpening(false)), [])
   const [step, setStep] = useState<Step>('welcome')
   const [name, setName] = useState(settings.workspaceName)
+  const [path, setPath] = useState<Path>('guided')
   const [models, setModels] = useState<{ router: string; memory: string } | null>(null)
   const [goal, setGoal] = useState<Goal | null>(null)
   // How far it goes on its own starts on Normal, the recommended answer (kept as "Padrão" while Settings say Normal).
@@ -126,7 +128,7 @@ export function Intro(): ReactNode {
       updateSettings({
         workspaceName: name.trim() || settings.workspaceName,
         ...(models ? { routerModel: models.router, memoryModel: models.memory } : {}),
-        onboarding: { ...o, done: true, channel: channelId, tour: { done: [] } }
+        onboarding: { ...o, done: true, channel: channelId, ...(path === 'short' ? { showAll: true, checklistHidden: true, tour: { done: [], skipped: true } } : { tour: { done: [] } }) }
       })
       navigate({ kind: 'conversation', id: channelId })
     } catch (e) {
@@ -152,7 +154,7 @@ export function Intro(): ReactNode {
         </button>
       )}
       <div className="intro__stage" key={step} data-dir={dir}>
-        {step === 'welcome' && <Welcome name={name} setName={setName} onNext={() => go('ai')} />}
+        {step === 'welcome' && <Welcome name={name} setName={setName} path={path} setPath={setPath} onNext={() => go('ai')} />}
         {step === 'ai' && <ConnectAi name={name} onBack={() => go('welcome')} onNext={(m) => (setModels(m), go('goal'))} />}
         {step === 'goal' && <AskGoal name={name} onPick={pick} onOwn={(t) => pick(goalForText(t))} onManual={() => go('manual')} onBack={() => go('ai')} />}
         {step === 'agent' && goal && <Born agent={agent} goal={goal} patch={(p) => setAgent((a) => ({ ...a, ...p }))} busy={busy} error={error} onCall={() => void call(agent, goal.task)} onAdjust={() => go('adjust')} onBack={() => go('goal')} />}
@@ -232,15 +234,6 @@ function Bubble({ children, strong }: { children: ReactNode; strong?: boolean })
   return <div className={`intro-bubble ${strong ? 'is-strong' : ''}`}>{children}</div>
 }
 
-// The face of an agent as the mockups draw it, without a name to read: decoration.
-function Face({ color, size, tilt = 0, style }: { color: AgentColor; size: number; tilt?: number; style?: CSSProperties }): ReactNode {
-  return (
-    <span className="intro-face" style={{ ...style, transform: `rotate(${tilt}deg)` }} aria-hidden>
-      <AgentAvatar agent={{ name: '', color }} size={size} />
-    </span>
-  )
-}
-
 function Check({ size = 22 }: { size?: number }): ReactNode {
   return (
     <svg width={size} height={size} viewBox="0 0 22 22" aria-hidden className="intro-check">
@@ -284,73 +277,69 @@ function LangToggle(): ReactNode {
 
 // ---------- 1. hello ----------
 
-function Welcome({ name, setName, onNext }: { name: string; setName: (v: string) => void; onNext: () => void }): ReactNode {
+function Welcome({ name, setName, path, setPath, onNext }: { name: string; setName: (v: string) => void; path: Path; setPath: (p: Path) => void; onNext: () => void }): ReactNode {
   const servers = !!window.tucano?.servers
   const [joining, setJoining] = useState(false)
   // A Tucano on a server, new: whoever used Tucano on their computer brings it all here instead.
   const web = windowless()
   const [restoring, setRestoring] = useState(false)
+  const paths: { id: Path; title: string; hint: string }[] = [
+    { id: 'guided', title: L('Sou novo com agentes de IA', 'I’m new to AI agents'), hint: L('Mostro cada parte no momento em que ela importa.', 'I show each part at the moment it matters.') },
+    { id: 'short', title: L('Já uso agentes', 'I already use agents'), hint: L('Sem tour. A barra lateral completa desde o início.', 'No tour. The full sidebar from the start.') }
+  ]
   return (
-    <div className="intro__split">
-      <div className="intro-art intro-art--peach" aria-hidden>
-        <span className="intro-blob" style={{ left: 90, top: 150, width: 380, height: 380 }} />
-        <span className="intro-hero">
-          <TucaMark size={260} />
-        </span>
-        <Face color="violet" size={78} tilt={-9} style={{ left: 56, top: 110 }} />
-        <Face color="amber" size={66} tilt={8} style={{ right: 70, top: 90 }} />
-        <Face color="teal" size={84} tilt={-5} style={{ right: 60, top: 470 }} />
-        <span className="intro-chip" style={{ left: 60, top: 520 }}>
-          {L('Pesquisei 12 fontes', 'Read 12 sources')} <Icon name="check" size={14} />
-        </span>
-        <span className="intro-chip intro-chip--dark" style={{ right: 50, top: 610 }}>
-          {L('Rascunho do e-mail pronto', 'Email draft ready')}
-        </span>
-        <span className="intro-chip" style={{ left: 110, top: 640 }}>
-          {L('Posso enviar?', 'Can I send it?')} <b>{L('Aprovar', 'Approve')}</b>
-        </span>
+    <section className="intro__full">
+      <div className="intro__top">
+        <Dots at={0} />
+        <LangToggle />
       </div>
-      <section className="intro__main">
-        <div className="intro__top">
-          <Dots at={0} />
-          <LangToggle />
-        </div>
-        <div className="intro__center">
-          <h1 className="intro-h1">
-            {L('Seu time de IA,', 'Your AI team,')}
-            <br />
-            {L('no seu computador.', 'on your computer.')}
-          </h1>
-          <p className="intro-lead">{L('Agentes que pesquisam, escrevem e organizam por você. Você conversa com eles como num chat, e nada importante acontece sem o seu ok.', 'Agents that research, write and organize for you. You talk to them like in a chat, and nothing important happens without your ok.')}</p>
-          <label className="intro-field">
-            {L('Como posso te chamar?', 'What should I call you?')}
-            <input className="intro-input" autoFocus value={name} placeholder={L('Seu nome', 'Your name')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && onNext()} />
-          </label>
-          <div className="intro-actions">
-            <button className="intro-btn" disabled={!name.trim()} onClick={onNext}>
-              {L('Começar', 'Get started')}
+      <div className="intro__center intro__center--welcome">
+        <TucaMark size={44} />
+        <h1 className="intro-h1">
+          {L('Seu time de IA,', 'Your AI team,')}
+          <br />
+          {L('no seu computador.', 'on your computer.')}
+        </h1>
+        <p className="intro-lead">{L('Agentes que pesquisam, escrevem e organizam por você. Você conversa com eles num chat, e nada importante acontece sem o seu ok.', 'Agents that research, write and organize for you. You talk to them in a chat, and nothing important happens without your ok.')}</p>
+        <label className="intro-field">
+          {L('Como posso te chamar?', 'What should I call you?')}
+          <input className="intro-input" autoFocus value={name} placeholder={L('Seu nome', 'Your name')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && onNext()} />
+        </label>
+        <div className="intro-paths" role="radiogroup" aria-label={L('Como você quer começar', 'How you want to start')}>
+          {paths.map((x) => (
+            <button key={x.id} role="radio" aria-checked={path === x.id} className={`intro-path ${path === x.id ? 'is-on' : ''}`} onClick={() => setPath(x.id)}>
+              <span className="intro-path__radio" aria-hidden />
+              <span className="intro-card__text">
+                <b>{x.title}</b>
+                <span>{x.hint}</span>
+              </span>
             </button>
-            {servers && (
-              <button className="intro-link" aria-expanded={joining} onClick={() => setJoining(!joining)}>
-                {L('Tenho um convite ou um servidor', 'I have an invite or a server')}
-              </button>
-            )}
-            {web && (
-              <button className="intro-link" aria-expanded={restoring} onClick={() => setRestoring(!restoring)}>
-                {L('Já uso o Tucano no computador', 'I already use Tucano on my computer')}
-              </button>
-            )}
-          </div>
-          {joining && <JoinLink />}
-          {restoring && (
-            <div className="intro-restore">
-              <BackupCard />
-            </div>
+          ))}
+        </div>
+        <div className="intro-actions">
+          <button className="intro-btn" disabled={!name.trim()} onClick={onNext}>
+            {L('Começar', 'Get started')}
+          </button>
+          {servers && (
+            <button className="intro-link" aria-expanded={joining} onClick={() => setJoining(!joining)}>
+              {L('Tenho um convite ou um servidor', 'I have an invite or a server')}
+            </button>
+          )}
+          {web && (
+            <button className="intro-link" aria-expanded={restoring} onClick={() => setRestoring(!restoring)}>
+              {L('Já uso o Tucano no computador', 'I already use Tucano on my computer')}
+            </button>
           )}
         </div>
-        <span className="intro-foot">{L('Conversas, memória e logins ficam no seu computador.', 'Conversations, memory and logins stay on your computer.')}</span>
-      </section>
-    </div>
+        {joining && <JoinLink />}
+        {restoring && (
+          <div className="intro-restore">
+            <BackupCard />
+          </div>
+        )}
+      </div>
+      <span className="intro-foot">{L('Conversas, memória e logins ficam no seu computador.', 'Conversations, memory and logins stay on your computer.')}</span>
+    </section>
   )
 }
 
@@ -394,22 +383,6 @@ function JoinLink(): ReactNode {
 }
 
 // ---------- 2. the AI ----------
-
-// The harness's own mark on its brand color (engine-logos.ts); its initial where there's no mark (Grok).
-function EngineMark({ engine, size = 44 }: { engine: EngineId; size?: number }): ReactNode {
-  const logo = ENGINE_LOGOS[engine]
-  return (
-    <span className={`intro-mark ${logo?.hex === '211E1B' || !logo ? 'intro-mark--ink' : ''}`} style={{ width: size, height: size, ...(logo ? { background: `#${logo.hex}` } : { fontSize: 17 }) }} aria-hidden>
-      {logo ? (
-        <svg viewBox="0 0 24 24" width={Math.round(size * 0.54)} height={Math.round(size * 0.54)} fill="currentColor">
-          <path d={logo.path} />
-        </svg>
-      ) : (
-        ENGINES[engine].label[0]
-      )}
-    </span>
-  )
-}
 
 // One real reply per harness, asked once per run: the screen says how long it took.
 type Tested = { ok: boolean; seconds?: number; message: string }
@@ -508,7 +481,7 @@ function ConnectAi({ name, onBack, onNext }: { name: string; onBack: () => void;
       <div className="intro__split">
         <aside className="intro-side intro-side--teal">
           <TucaHead />
-          <Bubble>{L('Opa, você já tem tudo pronto aqui. Achei o que você usa.', 'Oh, you’re all set up already. I found what you use.')}</Bubble>
+          <Bubble>{L('Você já tem tudo pronto aqui. Achei o que você usa.', 'You’re already set up. I found what you use.')}</Bubble>
           <Bubble>{auto ? L('Já escolhi os modelos rápidos pros bastidores. Se quiser mexer, é ali embaixo.', 'I already picked the quick models for behind the scenes. To change them, it’s down there.') : L('Só falta escolher os modelos rápidos pros bastidores, ali embaixo.', 'Just pick the quick models for behind the scenes, down there.')}</Bubble>
         </aside>
         <section className="intro__main">
@@ -680,7 +653,7 @@ function SetupCard(p: { engine: SetupEngine; title: string; plans: string; setup
         )}
         {label(
           ok ? 'done' : result ? 'error' : signedIn ? 'now' : 'later',
-          result?.ok ? L(`Respondeu em ${secs(result.seconds ?? 0)} s. Tudo certo.`, `Answered in ${secs(result.seconds ?? 0)} s. All set.`) : result ? explainEngineError(p.engine, result.message).line : L('Testar com uma resposta de verdade', 'Test with a real reply')
+          result?.ok ? L(`Respondeu em ${secs(result.seconds ?? 0)} s.`, `Answered in ${secs(result.seconds ?? 0)} s.`) : result ? explainEngineError(p.engine, result.message).line : L('Testar com uma resposta de verdade', 'Test with a real reply')
         )}
       </ol>
       {failed && (
@@ -742,7 +715,10 @@ function Found(p: {
   const signIn = needsSignIn(p.engines).filter((e) => !ready.includes(e))
   const [mcps, setMcps] = useState<HarnessMcp[]>([])
   const [skills, setSkills] = useState<LocalSkill[]>([])
-  const [bring, setBring] = useState({ mcps: true, skills: true })
+  // Left out on purpose, one by one under "ver quais": all of it comes along unless unticked.
+  const [left, setLeft] = useState<Set<string>>(new Set())
+  const takes = (id: string): boolean => !left.has(id)
+  const setTakes = (ids: string[], on: boolean): void => setLeft((l) => { const n = new Set(l); for (const id of ids) on ? n.delete(id) : n.add(id); return n })
   const [change, setChange] = useState(!p.models)
   const [busy, setBusy] = useState(false)
   // How each one's test went: one that failed doesn't hold the others up.
@@ -761,8 +737,8 @@ function Found(p: {
     if (!p.models) return
     setBusy(true)
     // What comes along, in the background of the next screen: none of it is needed to go on.
-    if (bring.mcps) for (const m of mcps) void importHarnessMcp(m.key).catch(() => {})
-    if (bring.skills) for (const k of skills) void linkSkill(k.source).catch(() => {})
+    for (const m of mcps) if (takes(`mcp:${m.key}`)) void importHarnessMcp(m.key).catch(() => {})
+    for (const k of skills) if (takes(`skill:${k.source}`)) void linkSkill(k.source).catch(() => {})
     p.onNext(p.models)
   }
 
@@ -793,24 +769,20 @@ function Found(p: {
             <BringRow
               from={fromClaude ? 'claude' : undefined}
               icon="plug"
-              on={bring.mcps}
-              onChange={(v) => setBring({ ...bring, mcps: v })}
-              title={
-                fromClaude
-                  ? mcps.length === 1 ? L('Trazer 1 ferramenta do Claude Code', 'Bring 1 tool from Claude Code') : L(`Trazer ${mcps.length} ferramentas do Claude Code`, `Bring ${mcps.length} tools from Claude Code`)
-                  : mcps.length === 1 ? L('Trazer 1 ferramenta', 'Bring 1 tool') : L(`Trazer ${mcps.length} ferramentas`, `Bring ${mcps.length} tools`)
-              }
-              names={mcps.map((m) => m.name)}
+              items={mcps.map((m) => ({ id: `mcp:${m.key}`, name: m.name }))}
+              takes={takes}
+              setTakes={setTakes}
+              title={(n) => (fromClaude ? (n === 1 ? L('Trazer 1 ferramenta do Claude Code', 'Bring 1 tool from Claude Code') : L(`Trazer ${n} ferramentas do Claude Code`, `Bring ${n} tools from Claude Code`)) : n === 1 ? L('Trazer 1 ferramenta', 'Bring 1 tool') : L(`Trazer ${n} ferramentas`, `Bring ${n} tools`))}
             />
           )}
           {skills.length > 0 && (
             <BringRow
               from={fromClaude ? 'claude' : undefined}
               icon="spark"
-              on={bring.skills}
-              onChange={(v) => setBring({ ...bring, skills: v })}
-              title={skills.length === 1 ? L('Trazer 1 skill', 'Bring 1 skill') : L(`Trazer ${skills.length} skills`, `Bring ${skills.length} skills`)}
-              names={skills.map((k) => k.name)}
+              items={skills.map((k) => ({ id: `skill:${k.source}`, name: k.name }))}
+              takes={takes}
+              setTakes={setTakes}
+              title={(n) => (n === 1 ? L('Trazer 1 skill', 'Bring 1 skill') : L(`Trazer ${n} skills`, `Bring ${n} skills`))}
             />
           )}
           {change ? (
@@ -861,7 +833,7 @@ export function continueLabel(working: EngineId[]): string {
 export function leftOut(failing: EngineId[]): string {
   const names = failing.map((e) => ENGINES[e].label)
   const who = names.length > 1 ? `${names.slice(0, -1).join(', ')} ${L('e', 'and')} ${names.at(-1)}` : (names[0] ?? '')
-  return names.length > 1 ? L(`${who} ficam de fora por agora; dá pra arrumar em Configurações.`, `${who} stay out for now; you can fix them in Settings.`) : L(`${who} fica de fora por agora; dá pra arrumar em Configurações.`, `${who} stays out for now; you can fix it in Settings.`)
+  return names.length > 1 ? L(`${who} ficam de fora por agora. Dá pra arrumar em Configurações.`, `${who} stay out for now. You can fix them in Settings.`) : L(`${who} fica de fora por agora. Dá pra arrumar em Configurações.`, `${who} stays out for now. You can fix it in Settings.`)
 }
 
 const list = (names: string[]): string => (names.length > 4 ? `${names.slice(0, 4).join(', ')}${L(` e mais ${names.length - 4}`, ` and ${names.length - 4} more`)}` : names.join(', '))
@@ -906,11 +878,14 @@ function FoundRow({ engine, account, gateway, listed, onResult, onSignIn }: { en
   )
 }
 
-// Something found in the person's programs, to bring along: a switch, and the names under "ver quais".
-function BringRow({ from, icon, on, onChange, title, names }: { from?: EngineId; icon: 'plug' | 'spark'; on: boolean; onChange: (v: boolean) => void; title: string; names: string[] }): ReactNode {
+// Something found in the person's programs, to bring along: a switch for the whole group, and under
+// "ver quais" each one with its own box, to leave out what shouldn't come.
+function BringRow({ from, icon, items, takes, setTakes, title }: { from?: EngineId; icon: 'plug' | 'spark'; items: { id: string; name: string }[]; takes: (id: string) => boolean; setTakes: (ids: string[], on: boolean) => void; title: (n: number) => string }): ReactNode {
   const [open, setOpen] = useState(false)
+  const picked = items.filter((i) => takes(i.id)).length
+  const ids = items.map((i) => i.id)
   return (
-    <div className={`intro-bring ${on ? '' : 'is-off'}`}>
+    <div className={`intro-bring ${picked ? '' : 'is-off'}`}>
       {from ? (
         <EngineMark engine={from} size={28} />
       ) : (
@@ -920,14 +895,26 @@ function BringRow({ from, icon, on, onChange, title, names }: { from?: EngineId;
       )}
       <span className="intro-bring__text">
         <span>
-          {title}{' '}
+          {title(picked || items.length)}
+          {picked > 0 && picked < items.length && <span className="intro-muted">{L(` de ${items.length}`, ` of ${items.length}`)}</span>}{' '}
           <button className="intro-link intro-bring__more" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? L('esconder', 'hide') : names.length === 1 ? L('ver qual', 'see which') : L('ver quais', 'see which')}
+            {open ? L('esconder', 'hide') : items.length === 1 ? L('ver qual', 'see which') : L('ver quais', 'see which')}
           </button>
         </span>
-        {open && <span className="intro-bring__names">{names.join(', ')}</span>}
+        {open && (
+          <span className="intro-bring__list" role="group">
+            {items.map((i) => (
+              <button key={i.id} role="checkbox" aria-checked={takes(i.id)} className="intro-pick" onClick={() => setTakes([i.id], !takes(i.id))}>
+                <span className="intro-pick__box" aria-hidden>
+                  {takes(i.id) && <Icon name="check" size={11} />}
+                </span>
+                {i.name}
+              </button>
+            ))}
+          </span>
+        )}
       </span>
-      <Toggle on={on} onChange={onChange} />
+      <Toggle on={picked > 0} onChange={(v) => setTakes(ids, v)} />
     </div>
   )
 }
@@ -941,7 +928,7 @@ function BackgroundPickers({ models, setModels }: { models: { router: string; me
     <div className="intro-jobs">
       <JobCard title={L('Escolhe quem responde', 'Picks who replies')} value={m.router} groups={groups} onChange={(v) => setModels({ ...m, router: v })} />
       <JobCard title={L('Cuida da memória', 'Keeps the memory')} value={m.memory} groups={groups} onChange={(v) => setModels({ ...m, memory: v })} />
-      <span className="intro-muted intro-jobs__hint">{L('Quem responde decide, num canal, qual agente fala; a memória resume conversas longas. Um modelo rápido basta. Dá pra trocar depois em Configurações.', 'Who replies decides which agent speaks in a channel; the memory sums up long talks. A quick model is enough. You can change them later in Settings.')}</span>
+      <span className="intro-muted intro-jobs__hint">{L('Quem responde decide, num canal, qual agente fala, e a memória resume conversas longas. Um modelo rápido basta. Dá pra trocar depois em Configurações.', 'Who replies decides which agent speaks in a channel, and the memory sums up long talks. A quick model is enough. You can change them later in Settings.')}</span>
     </div>
   )
 }
@@ -1019,13 +1006,13 @@ function Advanced({ models, setModels, onBack, onNext }: { models: { router: str
 
 // ---------- 3. the Tuca asks ----------
 
-const TILE_ICONS: Record<string, { color: string; d: ReactNode }> = {
-  week: { color: '#6D3FE0', d: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></> },
-  research: { color: '#0D7A7A', d: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
-  write: { color: '#8A5A00', d: <path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" /> },
-  customers: { color: '#B8460F', d: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z" /> },
-  sheets: { color: '#2A6FB0', d: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 9h18M3 15h18M9 3v18" /></> },
-  code: { color: '#3F3A33', d: <path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12" /> }
+const TILE_ICONS: Record<string, { d: ReactNode }> = {
+  week: { d: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></> },
+  research: { d: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
+  write: { d: <path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" /> },
+  customers: { d: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z" /> },
+  sheets: { d: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 9h18M3 15h18M9 3v18" /></> },
+  code: { d: <path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12" /> }
 }
 
 function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPick: (g: Goal) => void; onOwn: (text: string) => void; onManual: () => void; onBack: () => void }): ReactNode {
@@ -1062,16 +1049,16 @@ function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPi
         <div className="intro-ask">
           <TucaMark size={56} />
           <div className="intro-ask__bubbles">
-            <Bubble>{first ? L(`Pronto, ${first}! Agora vamos montar o seu primeiro agente.`, `Done, ${first}! Now let’s build your first agent.`) : L('Pronto! Agora vamos montar o seu primeiro agente.', 'Done! Now let’s build your first agent.')}</Bubble>
+            <Bubble>{first ? L(`Tudo conectado, ${first}. Agora o seu primeiro agente.`, `All connected, ${first}. Now your first agent.`) : L('Tudo conectado. Agora o seu primeiro agente.', 'All connected. Now your first agent.')}</Bubble>
             <Bubble strong>
-              <span id="intro-goal-q">{L('Qual é a primeira coisa que você queria tirar das suas costas?', 'What’s the first thing you’d like off your plate?')}</span>
+              <span id="intro-goal-q">{L('O que você quer delegar primeiro?', 'What do you want to hand off first?')}</span>
             </Bubble>
           </div>
         </div>
         <div className="intro-tiles" role="group" aria-labelledby="intro-goal-q">
           {GOALS().map((g) => (
             <button key={g.id} className="intro-tile" onClick={() => onPick(g)}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={TILE_ICONS[g.id]!.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`intro-tile__icon is-${g.id}`}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`intro-tile__icon is-${g.id}`}>
                 {TILE_ICONS[g.id]!.d}
               </svg>
               <span>{g.title}</span>
@@ -1088,7 +1075,7 @@ function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPi
           <label htmlFor="intro-say" className="sr-only">
             {L('Conte pro Tuca', 'Tell Tuca')}
           </label>
-          <input id="intro-say" ref={field} type="text" value={text} placeholder={L('Ou conte do seu jeito: responder clientes da minha loja no Instagram…', 'Or say it your way: reply to customers of my Instagram shop…')} onChange={(e) => setText(e.target.value)} />
+          <input id="intro-say" ref={field} type="text" value={text} placeholder={L('Ou descreva: responder os clientes da minha loja no Instagram', 'Or describe it: reply to my Instagram shop’s customers')} onChange={(e) => setText(e.target.value)} />
           {text.trim() ? (
             <button className="intro-round" type="submit" aria-label={L('Mandar pro Tuca', 'Send to Tuca')}>
               <Icon name="send" size={18} />
@@ -1128,14 +1115,13 @@ function Born(p: { agent: Agent; goal: Goal; patch: (a: Partial<Agent>) => void;
   const guard = useStore((s) => s.settings.outsideGuard ?? true)
   return (
     <div className="intro__split">
-      <div className="intro-art intro-art--lilac">
+      <div className="intro-art intro-art--agent">
         <div className="intro-art__say">
           <TucaMark size={44} />
-          <Bubble>{L(`Pronto! Esse é o seu agente, ${name}. Quer mudar algo antes?`, `Done! This is your agent, ${name}. Want to change anything first?`)}</Bubble>
+          <Bubble>{L(`Montei ${name} a partir do que você pediu. Ajuste o que quiser antes de chamar.`, `I built ${name} from what you asked. Adjust anything before bringing it in.`)}</Bubble>
         </div>
-        <span className="intro-blob intro-blob--lilac" aria-hidden style={{ left: 140, top: 190, width: 280, height: 280 }} />
         <span className="intro-born">
-          <AgentAvatar agent={{ ...agent, name }} size={176} />
+          <AgentAvatar agent={{ ...agent, name }} size={96} />
         </span>
         <div className="intro-name">
           {naming ? (
@@ -1302,7 +1288,6 @@ export function GuestWelcome(): ReactNode {
       <div className="intro__stage">
         <div className="intro__split">
           <div className="intro-art intro-art--ink">
-            <span className="intro-blob intro-blob--ember" aria-hidden />
             <span className="intro-invited">
               {by && <MeAvatar initials={initials(by)} size={32} />}
               {by ? L(`${by} te chamou pro time`, `${by} invited you to the team`) : L('Você foi chamado pro time', 'You were invited to the team')}
@@ -1310,7 +1295,7 @@ export function GuestWelcome(): ReactNode {
             <h1 className="intro-h1 intro-h1--team">{team}</h1>
             {agents.length > 0 && (
               <div className="intro-team">
-                <span className="intro-kicker">{L('O TIME', 'THE TEAM')}</span>
+                <span className="intro-kicker">{L('O time', 'The team')}</span>
                 {agents.slice(0, 4).map((a) => (
                   <div key={a.id} className="intro-team__row">
                     <AgentAvatar agent={a} size={44} />

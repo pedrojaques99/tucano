@@ -58,7 +58,17 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **An OpenCode reply makes one model call, not two.** OpenCode named each new session with a second call (its title agent), and every turn is a new session whose title the app never shows: it only spent tokens on a paid provider, the free models' quota, and on an OpenAI-compatible agent endpoint a whole extra agent turn. It's off now, on OpenCode 1.x and 2.x.
+### Changed
+
+- **The first run reads as the same product as the app.** It had a look of its own: peach, teal and lilac panels, rounded Nunito headings, 58 px pill buttons, floating faces and made-up chips ("Read 12 sources"). It now uses the app's colors and scale, Bricolage Grotesque for headings (as on tucano.sh), and the toucan as the signature: its mark, and the Tuca where he speaks. The opening is a 1.4 s toucan and name instead of the 8 s forest with sound. The welcome asks whether you're new to agents: if you already use them, there's no tour, no missions and the whole sidebar from the start. The tour's balloons, the missions (now a list; they still unlock the sidebar), an agent's question card (no side stripe, no segmented bar, options as rows) and the sidebar's "new" tag (a dot) are quieter too.
+
 ### Added
+
+- **What's left of your Claude subscription, always in sight.** A ring around Claude Code's mark at the foot of the sidebar shows the share left of the shortest window; on hover, each window the CLI reports (5 hours, weekly, and any per-model one), with the share left and when it resets. A harness that doesn't report its windows has no ring rather than a made-up one.
+- **Skills as a file tree.** The skills in use sit in folders by where their SKILL.md lives (your skills, each plugin, Codex, made here), and the one you pick shows its recipe beside the tree.
+- **The harnesses' official marks across the app.** Settings › Models and the model picker show each harness's mark, as the first run did.
+- **Pick what comes along from Claude Code, one by one.** In the first run, "see which" under the tools and skills found lists each with its own box, so you can leave some out.
+- **`scripts/onboarding-gate.mjs`**: the first run end to end in one command (build, every screen captured, the design scan), failing on any page error.
 
 - **An agent keeps answering through a chain of reserves.** One reserve covered one more login: when the main model ran out of quota, the reply went to the reserve once, and failed if that was out too. Now up to 3 more come after the first, each a model and, optionally, one of its harness's accounts: Claude Code on two accounts, then Antigravity, then OpenCode, say, keep an agent answering through a whole day of 5-hour and weekly windows. The reply moves to the next one that's ready, each tried once, skipping a login that isn't signed in or was already tried; never after a tool call, and the next reply starts on the main model again, as before. The agent's page lists them under the first reserve, with **Another reserve, if this one runs out too**, which starts on a login not in the chain yet (another program, else another account) or says how to get one, and warns about a reserve that would be skipped.
 ### Fixed

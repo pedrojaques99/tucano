@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **An OpenCode reply makes one model call, not two.** OpenCode named each new session with a second call (its title agent), and every turn is a new session whose title the app never shows: it only spent tokens on a paid provider, the free models' quota, and on an OpenAI-compatible agent endpoint a whole extra agent turn. It's off now, on OpenCode 1.x and 2.x.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

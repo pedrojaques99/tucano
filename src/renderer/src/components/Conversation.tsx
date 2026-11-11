@@ -366,7 +366,7 @@ export function MessageList({ messages: all, replies, older, conversationId, emp
     return (
       <div className="messages messages--empty">
         <div className="empty">
-          <Icon name="spark" size={22} />
+          <Icon name={dmName ? 'thread' : 'hash'} size={22} />
           <p>{L('Nada por aqui ainda.', 'Nothing here yet.')}</p>
           <p className="muted">{dmName ? L(`Escreva o que precisa: ${dmName} sempre responde aqui.`, `Write what you need: ${dmName} always replies here.`) : L('Escreva e quem estiver no canal responde. Pra chamar alguém, use @.', 'Write and whoever is in the channel replies. To call on someone, use @.')}</p>
         </div>

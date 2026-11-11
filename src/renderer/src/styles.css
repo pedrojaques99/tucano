@@ -6136,6 +6136,10 @@ kbd {
   gap: 12px;
   -webkit-app-region: no-drag;
 }
+/* A text action beside the primary button keeps to one line ("Buscar skills existentes" broke in two). */
+.sheet__actions .text-btn {
+  white-space: nowrap;
+}
 .text-btn {
   border: 0;
   background: none;
@@ -6369,6 +6373,9 @@ kbd {
   color: var(--text-3);
 }
 .read-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 28px;
 }
 
@@ -6874,7 +6881,10 @@ kbd {
   max-width: 1000px;
 }
 .sheet__back {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
   margin-bottom: 12px;
 }
 

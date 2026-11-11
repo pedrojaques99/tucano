@@ -336,8 +336,9 @@ export function reserveChain(agent: Pick<Agent, 'fallbackModelId' | 'fallbackAcc
   return [{ modelId: agent.fallbackModelId, ...(agent.fallbackAccountId ? { accountId: agent.fallbackAccountId } : {}) }, ...(agent.moreReserves ?? []).slice(0, MAX_MORE_RESERVES)]
 }
 
-// A model on a login: the same model on another account is another try, since the limit is the account's.
-const loginKey = (modelId: string, account: Pick<Account, 'id'> | undefined): string => `${modelId}@${account?.id ?? ''}`
+// A model on a login, by what it resolves to ('sonnet' and 'claude:sonnet' are one): the same model on another
+// account is another try, since the limit is the account's.
+const loginKey = (engine: EngineId, model: string, account: Pick<Account, 'id'> | undefined): string => `${engine}:${model}@${account?.id ?? ''}`
 
 export class Runner {
   private queue: { job: () => Promise<unknown>; urgent: boolean }[] = []
@@ -900,7 +901,7 @@ export class Runner {
       if (!model?.id) continue
       // An account of another harness (the reserve's model changed since) means the usual login, like the agent's own.
       const account = r.accountId ? settings.accounts?.find((a) => a.id === r.accountId && a.engine === model.engine) : undefined
-      if (tried.has(loginKey(r.modelId, account))) continue
+      if (tried.has(loginKey(model.engine, model.id, account))) continue
       const status = settings.engines[model.engine]
       if (!status?.installed || (account ? !account.loggedIn : !status.loggedIn)) continue
       return { model, modelId: r.modelId, account, index }
@@ -2170,7 +2171,7 @@ ${note}`,
         }
         // The main model's subscription is out before it did anything: the same reply goes to the next reserve in the
         // chain that is ready, each one once. After a tool call it doesn't, since that would run the call again; the next reply starts on the main model.
-        const reserve = !result && error && !control.reason && !acted && !questions && !approval && (!msg.text.trim() || outOfQuota(msg.text)) && outOfQuota(error) ? this.reserveFor(agent, settings, nextReserve, tried.add(loginKey(modelId, account))) : undefined
+        const reserve = !result && error && !control.reason && !acted && !questions && !approval && (!msg.text.trim() || outOfQuota(msg.text)) && outOfQuota(error) ? this.reserveFor(agent, settings, nextReserve, tried.add(loginKey(engineId, modelName, account))) : undefined
         if (!reserve) break
         const from = `${engineLabel}${account ? ` (${account.name})` : ''}`
         flush()

@@ -1,5 +1,5 @@
 import { L, locale, type Lang } from '../../../shared/lang'
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   agentById,
   navigate,
@@ -1887,7 +1887,23 @@ function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
   const usable = useStore((s) => usableEngines(s.settings))
   const accounts = useStore((s) => s.settings.accounts) ?? []
   const list = draft.moreReserves ?? []
+  // A key per row that stays with it: by index, removing one would hand its picker's state to the next.
+  const ids = useRef<number[]>([])
+  const seq = useRef(0)
+  while (ids.current.length < list.length) ids.current.push(seq.current++)
+  ids.current.length = list.length
   const set = (next: Reserve[]): void => patch({ moreReserves: next.length ? next : undefined })
+  const remove = (i: number): void => {
+    ids.current.splice(i, 1)
+    set(list.filter((_, j) => j !== i))
+  }
+  // Logins earlier in the chain (the main one, the first reserve, the extras before): one already there is skipped.
+  const loginOf = (modelId: string | undefined, accountId: string | undefined): string => {
+    const m = modelId ? modelInfo(modelId) : undefined
+    const acc = accounts.find((a) => a.id === accountId && a.engine === m?.engine)
+    return `${m?.engine}:${m?.id}@${acc?.id ?? ''}`
+  }
+  const earlier = [loginOf(draft.modelId, draft.accountId), loginOf(draft.fallbackModelId, draft.fallbackAccountId)]
   const change = (i: number, r: Reserve): void => set(list.map((x, j) => (j === i ? r : x)))
   // A new one starts on a harness not in the chain yet, when there is one: the same subscription would be out too.
   const add = (): void => {
@@ -1901,11 +1917,13 @@ function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
         const model = modelInfo(r.modelId)
         const own = accounts.filter((a) => a.engine === model?.engine)
         const account = own.find((a) => a.id === r.accountId)
+        const login = loginOf(r.modelId, r.accountId)
+        const repeated = earlier.includes(login) || list.slice(0, i).some((x) => loginOf(x.modelId, x.accountId) === login)
         return (
-          <div key={i} className="field">
+          <div key={ids.current[i]} className="field">
             <span className="field__label">
               {L(`Reserva ${i + 2}`, `Reserve ${i + 2}`)}
-              <button className="btn btn--sm btn--ghost" title={L('Tirar esta reserva', 'Remove this reserve')} onClick={() => set(list.filter((_, j) => j !== i))}>
+              <button className="btn btn--sm btn--ghost" title={L('Tirar esta reserva', 'Remove this reserve')} onClick={() => remove(i)}>
                 <Icon name="x" size={11} />
               </button>
             </span>
@@ -1921,6 +1939,8 @@ function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
                 placeholder={L(`A de sempre do ${ENGINES[model.engine].label}`, `${ENGINES[model.engine].label}’s usual one`)}
               />
             )}
+            {account && !account.loggedIn && <span className="hint hint--warn">{L('Essa conta ainda não entrou: esta reserva só funciona depois que você entrar nela em Configurações › Modelos.', 'This account isn’t signed in yet: this reserve only works once you sign in under Settings › Models.')}</span>}
+            {repeated && <span className="hint hint--warn">{L('É o mesmo modelo, na mesma conta de um anterior na fila: esta reserva vai ser pulada.', 'It’s the same model, on the same account as one earlier in the chain: this reserve will be skipped.')}</span>}
           </div>
         )
       })}

@@ -47,7 +47,6 @@ import {
 
 const JEV_KEY = 'typesafe:key' // jev.ts's JEV_SECRET: the router's key goes with the general settings
 
-// Each entry runs once, in order; PRAGMA user_version records how far we got.
 // Reserves after the first, read back (JSON in the column, or the list itself before a save): only well-formed
 // ones, at most MAX_MORE_RESERVES. Without a first reserve there are none (the chain starts at the first).
 export function reservesFrom(v: unknown): Reserve[] {
@@ -66,6 +65,7 @@ export function reservesFrom(v: unknown): Reserve[] {
     .slice(0, MAX_MORE_RESERVES)
 }
 
+// Each entry runs once, in order; PRAGMA user_version records how far we got.
 export const MIGRATIONS = [
   `
   CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -612,7 +612,7 @@ export class Db {
           DELETE FROM services;
           UPDATE conversations SET summary = NULL, summary_until = NULL, summary_at = NULL;
           DELETE FROM settings WHERE key IN ('quota', 'telegram', 'accounts');
-          UPDATE agents SET account = NULL, fallback_account = NULL;
+          UPDATE agents SET account = NULL, fallback_account = NULL, more_reserves = (SELECT json_group_array(json_object('modelId', json_extract(value, '$.modelId'))) FROM json_each(agents.more_reserves)); -- the logins are this computer's: every reserve goes back to its harness's usual one
           DELETE FROM secrets WHERE key LIKE 'telegram:%' OR key = 'github:proxy-key' OR key LIKE '%:oauth_verifier';
           DELETE FROM person_keys;
           DELETE FROM removed_keys;
@@ -723,7 +723,7 @@ export class Db {
         DELETE FROM removed_keys;
         DELETE FROM invites;
         DELETE FROM settings WHERE key IN ('quota', 'telegram', 'accounts', 'wikiDir', 'harnesses');
-        UPDATE agents SET account = NULL, fallback_account = NULL, apps = '[]', folders = '[]', computer = CASE WHEN computer_kind = 'mac' THEN 0 ELSE computer END;
+        UPDATE agents SET account = NULL, fallback_account = NULL, more_reserves = (SELECT json_group_array(json_object('modelId', json_extract(value, '$.modelId'))) FROM json_each(agents.more_reserves)), apps = '[]', folders = '[]', computer = CASE WHEN computer_kind = 'mac' THEN 0 ELSE computer END;
         UPDATE routines SET enabled = 0;
       `)
     })
@@ -793,7 +793,7 @@ export class Db {
       ...(str(r['account']) ? { accountId: str(r['account']) } : {}),
       ...(str(r['fallback_model']) ? { fallbackModelId: str(r['fallback_model']) } : {}),
       ...(str(r['fallback_account']) ? { fallbackAccountId: str(r['fallback_account']) } : {}),
-      ...(reservesFrom(r['more_reserves']).length ? { moreReserves: reservesFrom(r['more_reserves']) } : {}),
+      ...((more) => (more.length ? { moreReserves: more } : {}))(reservesFrom(r['more_reserves'])),
       effort: str(r['effort']) as Effort,
       limit: Number(r['limit_tokens']),
       maxRoutines: routineCap(Number(r['max_routines'])),

@@ -144,4 +144,29 @@ describe('a chain of reserves', () => {
     expect(claude.turns.map((t) => t.account)).toEqual([undefined, accountDir(data, 'p1'), undefined, accountDir(data, 'p1')])
     expect(agy.turns).toHaveLength(2)
   })
+
+  it('treats a model typed by name as the model it is: claude:sonnet on the usual login is sonnet there', async () => {
+    db.saveAgent(agent({ fallbackModelId: 'claude:sonnet', moreReserves: [{ modelId: 'sonnet', accountId: 'p1' }] }))
+    const claude = engine('claude', 'all')
+    const r = runner({ claude })
+    await r.send('d1', 'oi')
+    await r.idle()
+    expect(claude.turns.map((t) => t.account)).toEqual([undefined, accountDir(data, 'p1')])
+  })
+
+  it('ends the main model’s session once, after moving twice', async () => {
+    const released: string[] = []
+    const ok = fakeEngine('claude', { delayMs: 1, sessions: true, released })
+    const turns: Turn[] = []
+    const claude: Engine = { ...ok, run: (t) => (turns.push(t), (async function* (): AsyncIterable<EngineEvent> { yield OUT })()) }
+    const agy = engine('antigravity', 'all')
+    const oc = engine('opencode', 'none')
+    const r = runner({ claude, antigravity: agy, opencode: oc })
+    await r.send('d1', 'oi')
+    await r.idle()
+    expect(reply().run?.status).toBe('done')
+    const main = turns[0]!.session?.id
+    expect(main).toBeDefined()
+    expect(released.filter((id) => id === main)).toHaveLength(1)
+  })
 })

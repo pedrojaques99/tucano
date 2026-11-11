@@ -73,6 +73,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **A connector's tool list keeps its On toggle on a phone.** The list had fixed columns for the class, High risk and On, and a tool-name column that wouldn't shrink, so at phone width the toggles were cut in half past the edge of the connector's window. On a phone the columns are narrower and a long tool name wraps.
+### Fixed
+
+- **Install commands fit their box.** In Settings › Models, a harness's install command (like Antigravity's `irm https://antigravity.google/cli/install.ps1 | iex`) didn't wrap, so on a phone it ran past the edge and the whole tab scrolled sideways. It wraps now, on the code background the rest of the app uses; that box, the code of a sign-in in the server's terminal, a routine's webhook and the wiki's git folder pointed at color tokens that don't exist.
 
 ## [0.2.27] - 2026-11-10
 

@@ -1,5 +1,5 @@
 # Time, importação e backups
-> Exportar e importar o time num arquivo .md, trazer agentes do OpenBot ou do Grok Bot, e os backups do banco.
+> Exportar e importar o time num arquivo .md, trazer agentes de outro bot (OpenBot, Hermes, Grok Bot, OpenMaus e outros), e os backups do banco.
 
 Fica em **Configurações › Geral** (Settings › General).
 
@@ -8,10 +8,13 @@ No card **Time** (Team):
 - **Exportar time**: baixa um .md com os agentes, as skills, os canais e as rotinas, sem credenciais nem conversas. Serve pra guardar ou levar pra outro computador. O Tuca não vai junto: cada instalação tem o seu.
 - **Importar time…**: lê um .md exportado. Entra só o que ainda não existe aqui; as rotinas entram desligadas. No fim aparece um resumo do que entrou e do que ficou de fora.
 
-## De outro app
-**Importar de outro app…** aceita um .zip:
+## De outro bot
+Duas portas, o mesmo painel: na tela de boas-vindas, **Vim de outro bot**; e em **Configurações › Geral › Time**, **Trazer agentes de outro bot**. Escolha de onde vêm e solte o .zip:
 - **OpenBot**: em Configurações do servidor → Transfer → Export from this server, com os arquivos.
-- **Grok Bot**: ele não exporta sozinho. **Skill pro Grok Bot (experimental)** baixa uma skill: dê ela a um dos seus agentes de lá (ou cole o texto numa conversa) e peça "Exporte meus agentes pro Tucano". Ele devolve um .zip. É experimental: confira o resumo da importação.
+- **Hermes**: compacte a pasta do agente (a `~/.hermes`, com o `SOUL.md`) num .zip. O SOUL.md vira as instruções, as skills e as memórias (MEMORY.md, USER.md) vêm junto; config, chaves e tarefas agendadas ficam de fora.
+- **Grok Bot**, **OpenMaus** e outros: eles não exportam sozinhos. **Baixar a skill de export** baixa um SKILL.md: dê a um agente de lá (ou cole numa conversa) e peça "Exporte meus agentes pro Tucano". Ele devolve um .zip. É experimental: confira o resumo da importação.
+
+Quem traz agentes pela boas-vindas não monta um primeiro agente: depois de conectar a IA, o app abre na conversa com o primeiro importado.
 
 Os agentes importados entram sem nenhum conector, com a busca na web desligada, as rotinas desligadas e as memórias esperando você confirmar. Um servidor MCP do outro app só aparece no resumo; nunca vira conector sozinho.
 

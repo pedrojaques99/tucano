@@ -135,20 +135,19 @@ export function MissionsPage(): ReactNode {
         )}
       </div>
       <ol className="missions__grid">
-        {all.map((m, i) => {
+        {all.map((m) => {
           const isDone = done.has(m.id)
           const isNext = m === next
           return (
             <li key={m.id} className={`mission ${isDone ? 'is-done' : isNext ? 'is-next' : ''}`}>
-              {isDone ? (
-                <span className="mission__check" aria-hidden>
-                  <Icon name="check" size={16} />
-                </span>
-              ) : (
-                <span className="mission__n" aria-hidden>
-                  {i + 1}
-                </span>
-              )}
+              <span className="mission__art" aria-hidden>
+                <MissionArt id={m.id} />
+                {isDone && (
+                  <span className="mission__check">
+                    <Icon name="check" size={11} />
+                  </span>
+                )}
+              </span>
               <b>{m.title(name)}</b>
               {isDone ? (
                 <span className="mission__state">{m.unlocks.length && short ? L(`Feita · liberou ${m.unlockName}`, `Done · unlocked ${m.unlockName}`) : L('Feita', 'Done')}</span>
@@ -191,5 +190,84 @@ export function MissionsPage(): ReactNode {
         <span>{L('Voltam em Configurações.', 'They come back in Settings.')}</span>
       </p>
     </div>
+  )
+}
+
+// Each mission's little drawing, in the app icon's own language: flat round shapes in the toucan's ink,
+// its beak orange and paper. What it shows is what the mission does, so the list reads at a glance.
+const INK = 'var(--art-ink)'
+const BEAK = '#FF8C24'
+const JAW = '#E5531F'
+const PAPER = 'var(--art-paper)'
+function MissionArt({ id }: { id: MissionId }): ReactNode {
+  const art: Record<MissionId, ReactNode> = {
+    // Talk: two bubbles, the reply in the beak's orange.
+    talk: (
+      <>
+        <rect x="5" y="9" width="20" height="14" rx="7" fill={INK} />
+        <path d="M9 21 L8 27 L14 22 Z" fill={INK} />
+        <rect x="15" y="17" width="20" height="14" rx="7" fill={BEAK} />
+        <path d="M31 29 L32 35 L26 30 Z" fill={BEAK} />
+        <circle cx="21" cy="24" r="1.6" fill={PAPER} />
+        <circle cx="25" cy="24" r="1.6" fill={PAPER} />
+        <circle cx="29" cy="24" r="1.6" fill={PAPER} />
+      </>
+    ),
+    // Approve: a request card, and the yes on it.
+    approve: (
+      <>
+        <rect x="6" y="8" width="24" height="26" rx="5" fill={PAPER} stroke={INK} strokeWidth="1" />
+        <rect x="10" y="13" width="12" height="2.5" rx="1.25" fill={INK} opacity=".35" />
+        <rect x="10" y="18" width="16" height="2.5" rx="1.25" fill={INK} opacity=".35" />
+        <circle cx="29" cy="28" r="7" fill={BEAK} />
+        <path d="M25.8 28.2 L28 30.4 L32.2 25.8" stroke={PAPER} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    // Connect: two ends meeting, one the app's, one the account's.
+    connect: (
+      <>
+        <rect x="4" y="15" width="15" height="10" rx="5" fill={INK} />
+        <rect x="21" y="15" width="15" height="10" rx="5" fill={BEAK} />
+        <rect x="16" y="18.5" width="8" height="3" rx="1.5" fill={JAW} />
+        <circle cx="10" cy="20" r="2" fill={PAPER} />
+        <circle cx="30" cy="20" r="2" fill={PAPER} />
+      </>
+    ),
+    // A second agent: two faces side by side, the agents' own shape.
+    second: (
+      <>
+        <rect x="4" y="10" width="17" height="17" rx="5.5" fill={INK} />
+        <rect x="8.5" y="15.5" width="2.6" height="4.6" rx="1.3" fill={PAPER} />
+        <rect x="13.9" y="15.5" width="2.6" height="4.6" rx="1.3" fill={PAPER} />
+        <rect x="19" y="14" width="17" height="17" rx="5.5" fill={BEAK} />
+        <rect x="23.5" y="19.5" width="2.6" height="4.6" rx="1.3" fill={PAPER} />
+        <rect x="28.9" y="19.5" width="2.6" height="4.6" rx="1.3" fill={PAPER} />
+      </>
+    ),
+    // On its own: a clock face whose hand is the beak.
+    auto: (
+      <>
+        <circle cx="20" cy="20" r="14" fill={INK} />
+        <circle cx="20" cy="20" r="10.5" fill={PAPER} />
+        <path d="M20 20 L20 12.5" stroke={INK} strokeWidth="2" strokeLinecap="round" />
+        <path d="M20 18 L29 20 L20 22 Z" fill={BEAK} />
+        <circle cx="20" cy="20" r="1.8" fill={INK} />
+      </>
+    ),
+    // Keep: pages in a stack, with the beak's tab marking the one that matters.
+    remember: (
+      <>
+        <rect x="9" y="6" width="22" height="26" rx="4" fill={INK} opacity=".25" />
+        <rect x="6" y="9" width="22" height="26" rx="4" fill={PAPER} stroke={INK} strokeWidth="1" />
+        <path d="M19 9 H25 V19 L22 16.5 L19 19 Z" fill={BEAK} />
+        <rect x="10" y="22" width="13" height="2.5" rx="1.25" fill={INK} opacity=".35" />
+        <rect x="10" y="27" width="9" height="2.5" rx="1.25" fill={INK} opacity=".35" />
+      </>
+    )
+  }
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      {art[id]}
+    </svg>
   )
 }

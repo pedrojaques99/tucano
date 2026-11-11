@@ -2,7 +2,7 @@
 // the person sets what it can use and its first task; and the introduction's "Prefiro configurar do
 // zero" (Intro.tsx), the same form from a template, which hands the agent back to the introduction.
 import { L } from '../../../shared/lang'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ENGINES,
   MODELS,
@@ -34,7 +34,7 @@ import { Composer, MessageList } from './Conversation'
 import { draftAgent, UseDraft } from './Tuca'
 import { AutonomyPick } from './AutonomyPick'
 import { autonomyChosen, FIRST_AUTONOMY, storedAutonomy } from '../../../shared/onboarding'
-import { AgentAvatar, Icon, type IconName } from './ui'
+import { AgentAvatar, AVATARS, BackButton, Icon, type IconName } from './ui'
 
 type Computer = 'none' | 'linux' | 'mac'
 
@@ -46,6 +46,7 @@ interface Template {
   name: string
   role: string
   color: AgentColor
+  look?: string // the avatar of its trade, from the gallery
   instructions: string
   tasks: string[]
 }
@@ -59,6 +60,7 @@ const TEMPLATES = (): Template[] => [
     name: 'Iris',
     role: L('Pesquisa', 'Research'),
     color: 'sky',
+    look: 'magnifier',
     instructions: L(
       'Pesquisa na web antes de responder e cita as fontes com links. Resume em tópicos curtos, separa o que é fato do que é opinião e diz quando não achou nada confiável.',
       'Searches the web before answering and cites sources with links. Sums up in short bullet points, separates fact from opinion and says when it found nothing reliable.'
@@ -76,6 +78,7 @@ const TEMPLATES = (): Template[] => [
     name: 'Leo',
     role: L('Engenharia', 'Engineering'),
     color: 'violet',
+    look: 'rocket',
     instructions: L(
       'Ajuda com código, arquitetura e bugs. Explica o raciocínio em poucas linhas e mostra código quando ajuda. Antes de propor algo grande, descreve o plano e pergunta.',
       'Helps with code, architecture and bugs. Explains its reasoning in a few lines and shows code when it helps. Before proposing something big, it describes the plan and asks.'
@@ -93,6 +96,7 @@ const TEMPLATES = (): Template[] => [
     name: 'Nina',
     role: L('Conteúdo', 'Content'),
     color: 'rose',
+    look: 'paint-brush',
     instructions: L(
       'Escreve posts, e-mails e textos no meu tom: leve, curto, sem jargão. Entrega o rascunho pronto pra usar e pergunta se ajusta alguma coisa.',
       'Writes posts, emails and copy in my voice: light, short, no jargon. Delivers a ready-to-use draft and asks if anything needs adjusting.'
@@ -110,6 +114,7 @@ const TEMPLATES = (): Template[] => [
     name: 'Bia',
     role: L('Assistente', 'Assistant'),
     color: 'amber',
+    look: 'mug',
     instructions: L(
       'Ajuda a organizar o dia: tarefas, prioridades, lembretes e planos. Faz perguntas curtas quando falta informação e responde em listas fáceis de seguir.',
       'Helps organize the day: tasks, priorities, reminders and plans. Asks short questions when information is missing and answers in easy-to-follow lists.'
@@ -146,7 +151,7 @@ const readyModels = (engines: State['settings']['engines']): typeof MODELS => MO
 // A template fills in who the agent is; the model stays if it still works.
 function fromTemplate(a: Agent, t: Template, models: typeof MODELS): Agent {
   const model = MODELS.some((m) => m.id === a.modelId) ? (models.find((m) => m.id === a.modelId) ?? models[0]) : modelInfo(a.modelId) ? { id: a.modelId } : models[0]
-  return { ...a, name: t.name, role: t.role, color: t.color, customColor: undefined, instructions: t.instructions, modelId: model?.id ?? a.modelId, web: true }
+  return { ...a, name: t.name, role: t.role, color: t.color, customColor: undefined, avatar: AVATARS.find((x) => x.id === t.look), picture: undefined, instructions: t.instructions, modelId: model?.id ?? a.modelId, web: true }
 }
 
 // `manual`: the introduction's form, which gives the agent and its first message back to it.
@@ -263,14 +268,20 @@ export function Onboarding({ build = false, from, manual }: { build?: boolean; f
     <div className="onb">
       <div className="onb__drag" />
       <header className="onb__top">
-        <div className="onb__dots" aria-label={L(`Passo ${at + 1} de ${steps.length}`, `Step ${at + 1} of ${steps.length}`)}>
-          {steps.map((s, i) => (
-            <span key={s} className={i === at ? 'is-now' : i < at ? 'is-done' : ''} />
-          ))}
-        </div>
-        <button className="btn btn--ghost btn--sm" onClick={close}>
-          {manual ? L('Voltar', 'Back') : L('Fechar', 'Close')}
-        </button>
+        <span className="intro__top-left">
+          {/* Back: a step back, or out to the introduction on its first step. */}
+          {(manual || at > 0) && <BackButton onClick={at > 0 ? back : close} />}
+          <div className="onb__dots" aria-label={L(`Passo ${at + 1} de ${steps.length}`, `Step ${at + 1} of ${steps.length}`)}>
+            {steps.map((s, i) => (
+              <span key={s} className={i === at ? 'is-now' : i < at ? 'is-done' : ''} />
+            ))}
+          </div>
+        </span>
+        {!manual && (
+          <button className="btn btn--ghost btn--sm" onClick={close}>
+            {L('Fechar', 'Close')}
+          </button>
+        )}
       </header>
 
       <div className="onb__scroll">
@@ -464,7 +475,7 @@ function MakeAgent(p: {
 }): ReactNode {
   const { agent, patch } = p
   return (
-    <div className="onb__split">
+    <div className="onb__split onb-studio">
       <section className="onb__main">
         <h1>{L('Quem vai trabalhar com você?', 'Who’s going to work with you?')}</h1>
         <p className="onb__lead">{L('Comece por um dos exemplos e ajuste o que quiser. Depois você monta o resto do time.', 'Start from one of the examples and adjust anything. You build the rest of the team later.')}</p>
@@ -507,20 +518,21 @@ function MakeAgent(p: {
         </label>
         <Nav onBack={p.onBack} onNext={p.onNext} disabled={!agent.name.trim() || !usable(modelInfo(agent.modelId))} />
       </section>
-      <aside className="onb__aside">
-        <AgentCard agent={agent} handle={p.handle} computer={p.computer} />
+      <aside className="onb__aside onb-studio__canvas">
+        <AgentCard agent={agent} handle={p.handle} computer={p.computer} stage />
       </aside>
     </div>
   )
 }
 
-function AgentCard({ agent, handle, computer }: { agent: Agent; handle: string; computer: Computer }): ReactNode {
+// The agent as it'll look. On a step of a new agent (stage) it's the canvas: large, on its own color.
+function AgentCard({ agent, handle, computer, stage }: { agent: Agent; handle: string; computer: Computer; stage?: boolean }): ReactNode {
   const model = modelInfo(agent.modelId)
   const name = agent.name.trim() || L('Seu agente', 'Your agent')
   const first = agent.instructions.trim().split(/(?<=\.)\s/)[0]
   return (
-    <div className="onb-card">
-      <AgentAvatar agent={{ ...agent, name }} size={64} />
+    <div className={`onb-card ${stage ? `onb-card--stage c-${agent.color}` : ''}`} style={stage && agent.customColor ? ({ '--agent': agent.customColor } as CSSProperties) : undefined}>
+      <AgentAvatar agent={{ ...agent, name }} size={stage ? 132 : 64} />
       <h2>{name}</h2>
       <span className="muted">
         @{handle}
@@ -574,7 +586,7 @@ function Powers(p: {
   const settingsLevel = useStore((s) => s.settings.autonomy)
   const guard = useStore((s) => s.settings.outsideGuard ?? true)
   return (
-    <div className="onb__split">
+    <div className="onb__split onb-studio">
       <section className="onb__main">
         <h1>{L(`O que ${name} pode usar`, `What ${name} can use`)}</h1>
         <p className="onb__lead">{L('Ligue só o que a função pede. Tudo isso muda depois na página do agente, e cada ação aparece na conversa.', 'Turn on only what the role needs. All of this can change later on the agent’s page, and every action shows up in the conversation.')}</p>
@@ -665,8 +677,8 @@ function Powers(p: {
         <AutonomyPick compact name={agent.name.trim() || L('o agente', 'the agent')} value={autonomyChosen(agent.autonomy, settingsLevel)} guard={guard} onPick={(level) => patch({ autonomy: storedAutonomy(level, settingsLevel) })} />
         <Nav onBack={p.onBack} onNext={p.onNext} />
       </section>
-      <aside className="onb__aside">
-        <AgentCard agent={agent} handle={p.handle} computer={computer} />
+      <aside className="onb__aside onb-studio__canvas">
+        <AgentCard agent={agent} handle={p.handle} computer={computer} stage />
       </aside>
     </div>
   )
@@ -689,7 +701,7 @@ function FirstTask(p: {
 }): ReactNode {
   const name = p.agent.name.trim()
   return (
-    <div className="onb__split">
+    <div className="onb__split onb-studio">
       <section className="onb__main">
         <h1>{L(`O que ${name} faz primeiro?`, `What does ${name} do first?`)}</h1>
         <p className="onb__lead">
@@ -724,8 +736,8 @@ function FirstTask(p: {
           }
         />
       </section>
-      <aside className="onb__aside">
-        <AgentCard agent={p.agent} handle={p.handle} computer={p.computer} />
+      <aside className="onb__aside onb-studio__canvas">
+        <AgentCard agent={p.agent} handle={p.handle} computer={p.computer} stage />
       </aside>
     </div>
   )

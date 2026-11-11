@@ -413,3 +413,35 @@ describe('a vault sent to a server as a .zip', () => {
     expect(() => extractZip(zipFromBuffer(zip({ 'a.md': 'x'.repeat(60), 'b.md': 'x'.repeat(60) })), mkdtempSync(join(tmpdir(), 'tucano-unzip-')), { file: 100, total: 100 })).toThrow()
   })
 })
+
+describe('importing a Hermes agent, from its folder', () => {
+  const hermes = (files: Record<string, string>): ReturnType<typeof readForeignZip> => readForeignZip(zipFromBuffer(zip(files)))
+  it('brings the soul as instructions, its skills and its memories; keys, config and cron stay out', () => {
+    const team = hermes({
+      '.hermes/SOUL.md': '# Vicent\n\nVocê cuida da agenda e dos e-mails da Visant.\n',
+      '.hermes/skills/produtividade/agenda/SKILL.md': '---\nname: agenda\ndescription: Monta a semana\n---\nAntes, pergunte as prioridades.\n',
+      '.hermes/skills/agenda/notas.txt': 'x',
+      '.hermes/memories/MEMORY.md': 'Prefere respostas curtas.\n§\nO escritório fecha às 18h.\n',
+      '.hermes/memories/USER.md': '- Mora em Floripa\n- Usa Linear\n',
+      '.hermes/config.yaml': 'model: x\n',
+      '.hermes/.env': 'OPENROUTER_API_KEY=secret',
+      '.hermes/cron/jobs.json': '[]'
+    })
+    expect(team.source).toBe('Hermes')
+    expect(team.agents).toHaveLength(1)
+    const a = team.agents[0]!
+    expect(a.name).toBe('Vicent')
+    expect(a.instructions).toContain('cuida da agenda')
+    expect(a.skills.map((k) => k.name)).toEqual(['agenda'])
+    expect(a.memories).toEqual(['Mora em Floripa', 'Usa Linear', 'Prefere respostas curtas.', 'O escritório fecha às 18h.'])
+    expect(team.notes.join(' ')).toMatch(/config\.yaml/)
+    expect(team.notes.join(' ')).toMatch(/chaves e logins/)
+    expect(team.notes.join(' ')).toMatch(/rotinas/)
+    // Nothing secret reaches the agent.
+    expect(JSON.stringify(team)).not.toContain('secret')
+  })
+  it('takes a SOUL.md at the top too, named by its folder when it has no heading', () => {
+    expect(hermes({ 'SOUL.md': 'Seja direto.' }).agents[0]!.name).toBe('Hermes')
+    expect(hermes({ 'miguel/SOUL.md': 'Atenda o WhatsApp.' }).agents[0]!.name).toBe('miguel')
+  })
+})

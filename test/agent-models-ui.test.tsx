@@ -29,10 +29,12 @@ const pick = async (el: Element, value: string) => act(async () => { Object.defi
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.includes(text))!
 
 it('selects all displayed active agents and applies only after the button is pressed', async () => {
-  await pick(document.querySelector('select')!, 'opus')
-  expect(save).not.toHaveBeenCalled()
+  // The bulk bar shows only once some are picked.
+  expect(document.querySelector('[role="group"][aria-label="Alterar em lote"]')).toBeNull()
   const all = [...document.querySelectorAll('label')].find((l) => l.textContent?.includes('Selecionar todos'))!.querySelector('input')!
   await click(all)
+  await pick(document.querySelector('[role="group"][aria-label="Alterar em lote"] select')!, 'opus')
+  expect(save).not.toHaveBeenCalled()
   await click(button('Aplicar aos selecionados'))
   expect(save).toHaveBeenCalledWith(['lia', 'theo'], 'opus')
   expect(document.body.textContent).toContain('Modelo atualizado')

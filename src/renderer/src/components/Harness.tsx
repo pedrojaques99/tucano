@@ -39,6 +39,8 @@ import {
 import { EngineMark, Icon } from './ui'
 import { EngineProblem } from './EngineProblem'
 import { Select } from './Select'
+import { isFastModel } from '../../../shared/onboarding'
+import { left, QuotaRing, windowsOf } from './UsageDock'
 
 // The harnesses agents may run on now: picked (or all, if never picked), ready, and runnable.
 export const usableEngines = (s: Settings): EngineId[] => ENGINE_IDS.filter((e) => s.engines[e].loggedIn)
@@ -190,14 +192,16 @@ export function ModelPicker({ value, onChange, engines, jev }: { value: string; 
 
 // ---------- the harnesses ----------
 
-const ROUTE = (): Record<NonNullable<EngineStatus['route']>, { label: string; tone: string }> => ({
-  plan: { label: L('plano', 'plan'), tone: 'tag--ok' },
-  gateway: { label: 'gateway', tone: 'tag--ok' },
-  apikey: { label: L('chave de API', 'API key'), tone: 'tag--warn' },
-  providers: { label: L('provedores', 'providers'), tone: 'tag--ok' }
+const ROUTE = (): Record<NonNullable<EngineStatus['route']>, string> => ({
+  plan: L('no plano', 'on a plan'),
+  gateway: 'gateway',
+  apikey: L('chave de API', 'API key'),
+  providers: L('provedores', 'providers')
 })
 
-// Every harness, with what was found in its own setup, a box to use it or not, and a test.
+// Every harness as one list, in two groups: the ones on this computer (a box to use it or not, how it
+// pays, a test) and the ones to install (one line each). Each row says its state once, with one action;
+// the install command shows only when no terminal could be opened, or when asked for.
 export function HarnessList(): ReactNode {
   const engines = useStore((s) => s.settings.engines)
   const chosen = useStore((s) => s.settings.harnesses)
@@ -207,16 +211,35 @@ export function HarnessList(): ReactNode {
     const now = ENGINE_IDS.filter(picked)
     updateSettings({ harnesses: now.includes(e) ? now.filter((x) => x !== e) : [...now, e] })
   }
+  const here = ENGINE_IDS.filter((e) => engines[e].installed)
+  const toInstall = ENGINE_IDS.filter((e) => !engines[e].installed)
+  const group = (title: string, ids: EngineId[], cards = false): ReactNode =>
+    ids.length > 0 && (
+      <section className="harnesses__group" aria-label={title}>
+        <h3 className="harnesses__title">
+          {title} <span>{ids.length}</span>
+        </h3>
+        <div className={cards ? 'harnesses__cards' : 'harnesses__rows'}>
+          {ids.map((e) => (
+            <HarnessRow key={e} engine={e} st={engines[e]} picked={picked(e)} toggle={() => toggle(e)} card={cards} />
+          ))}
+        </div>
+      </section>
+    )
   return (
     <div className="harnesses">
-      {ENGINE_IDS.map((e) => (
-        <HarnessRow key={e} engine={e} st={engines[e]} picked={picked(e)} toggle={() => toggle(e)} />
-      ))}
+      {group(L('Neste computador', 'On this computer'), here, true)}
+      {group(L('Pra instalar', 'To install'), toInstall)}
     </div>
   )
 }
 
-function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: EngineStatus; picked: boolean; toggle: () => void }): ReactNode {
+function HarnessRow({ engine, st, picked, toggle, card }: { engine: EngineId; st: EngineStatus; picked: boolean; toggle: () => void; card?: boolean }): ReactNode {
+  // How many agents run here, and the plan's share left where the CLI tells (Claude Code today).
+  const agents = useStore((s) => s.agents.filter((a) => !a.archived && modelInfo(a.modelId)?.engine === engine).length)
+  const quota = useStore((s) => (engine === 'claude' ? s.settings.quota : undefined))
+  const windows_ = windowsOf(quota)
+  const share = windows_.length ? Math.min(...windows_.map(left)) : undefined
   const [testing, setTesting] = useState(false)
   const checkId = useId()
   const [model, setModel] = useState('')
@@ -225,9 +248,12 @@ function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: Engi
   const [manual, setManual] = useState<string | null>(null)
   // The install: started in a terminal, or blocked on Node.js for an npm package.
   const [install, setInstall] = useState<'started' | 'node' | null>(null)
+  // The install command, asked for ("ver comando"), or because no terminal opened.
+  const [showCmd, setShowCmd] = useState(false)
   const windows = useStore((s) => s.platform === 'windows')
   const ready = st.loggedIn
-  const found = st.installed && !!st.route // what its setup says, picked or not
+  const name = ENGINES[engine].label
+  const cmd = windows ? (ENGINES[engine].windows ?? ENGINES[engine].install).replace(/^npm /, 'npm.cmd ') : ENGINES[engine].install
 
   async function test(): Promise<void> {
     setResult(null)
@@ -238,51 +264,117 @@ function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: Engi
     }
   }
 
-  return (
-    <div className={`harness ${picked ? 'is-picked' : ''} ${st.soon ? 'is-soon' : ''}`}>
-      <div className="harness__head">
-        <button id={checkId} className={`harness__check ${picked ? 'is-on' : ''}`} disabled={!!st.soon || !st.installed} onClick={toggle} aria-label={L(`Usar o ${ENGINES[engine].label}`, `Use ${ENGINES[engine].label}`)}>
-          {picked && <Icon name="check" size={12} />}
+  // The row's one state, said once: its dot and its words.
+  const state: { tone: 'on' | 'off' | 'warn'; text: string } = st.checking
+    ? { tone: 'off', text: L('conferindo…', 'checking…') }
+    : st.soon
+      ? { tone: 'off', text: L('em breve', 'coming soon') }
+      : !st.installed
+        ? { tone: 'off', text: L('não instalado', 'not installed') }
+        : !st.loggedIn
+          ? { tone: 'warn', text: L('falta entrar', 'not signed in') }
+          : { tone: picked ? 'on' : 'off', text: st.route ? ROUTE()[st.route] : L('pronto', 'ready') }
+
+  const check = (
+    <button id={checkId} className={`harness__check ${picked ? 'is-on' : ''}`} disabled={!!st.soon} onClick={toggle} role="checkbox" aria-checked={picked} aria-label={L(`Usar o ${name}`, `Use ${name}`)}>
+      {picked && <Icon name="check" size={12} />}
+    </button>
+  )
+  const actions = (
+    <>
+      {picked && ready && !st.soon && (
+        <button className="btn btn--ghost btn--sm" aria-expanded={testing} onClick={() => setTesting(!testing)}>
+          {L('Testar', 'Test')}
         </button>
-        <EngineMark engine={engine} size={32} />
-        {/* The name is the check's label: a click on it is a click on the check, disabled when it is. */}
-        <label className="grow harness__name" htmlFor={checkId}>
-          <strong>{ENGINES[engine].label}</strong>
-          <span className="harness__account">
-            {st.checking ? L('Conferindo…', 'Checking…') : !st.installed ? L('Não instalado', 'Not installed') : st.account ?? (st.loggedIn ? L('Pronto', 'Ready') : L('Falta entrar', 'Not signed in'))}
+      )}
+      {st.installed && !st.loggedIn && !st.soon && (
+        <button className="btn btn--sm" title={L(`Abre um terminal com: ${ENGINES[engine].login}`, `Opens a terminal with: ${ENGINES[engine].login}`)} onClick={() => void loginEngine(engine).then((r) => setManual(r.opened ? null : r.command))}>
+          {L('Entrar', 'Sign in')}
+        </button>
+      )}
+    </>
+  )
+  const head = card ? (
+    <>
+      <div className="harness-card__top">
+        {share !== undefined ? (
+          <span className="harness-card__ring" title={L(`${Math.round(share * 100)}% do plano restante`, `${Math.round(share * 100)}% of the plan left`)}>
+            <QuotaRing engine={engine} share={share} />
           </span>
-        </label>
-        {st.soon ? (
-          <span className="tag">{L('em breve', 'coming soon')}</span>
-        ) : found && st.route ? (
-          <span className={`tag ${ROUTE()[st.route].tone}`}>{ROUTE()[st.route].label}</span>
-        ) : st.installed ? (
-          <span className="tag tag--warn">{L('falta entrar', 'not signed in')}</span>
-        ) : null}
-        {picked && ready && (
-          <button className="btn btn--sm" onClick={() => setTesting(!testing)}>
-            {L('Testar', 'Test')}
-          </button>
+        ) : (
+          <EngineMark engine={engine} size={32} />
         )}
-        {!st.installed && !st.soon && (
-          <button
-            className="btn btn--sm btn--primary"
-            title={L('Abre um terminal que instala pra você', 'Opens a terminal that installs it for you')}
-            onClick={() => void installEngine(engine).then((r) => setInstall(r.needsNode ? 'node' : r.opened ? 'started' : null))}
-          >
-            {L('Instalar', 'Install')}
-          </button>
-        )}
-        {st.installed && !st.loggedIn && !st.soon && (
-          <button
-            className="btn btn--sm btn--primary"
-            title={L(`Abre um terminal com: ${ENGINES[engine].login}`, `Opens a terminal with: ${ENGINES[engine].login}`)}
-            onClick={() => void loginEngine(engine).then((r) => setManual(r.opened ? null : r.command))}
-          >
-            {L('Entrar', 'Sign in')}
-          </button>
-        )}
+        <span className="grow" />
+        {actions}
+        {check}
       </div>
+      <label className="harness-card__name" htmlFor={checkId}>
+        <strong>{name}</strong>
+        <span>{st.account ?? '\u00a0'}</span>
+      </label>
+      <div className="harness-card__foot">
+        <span className={`harness__state is-${state.tone}`}>
+          <span className="harness__dot" aria-hidden />
+          {state.text}
+        </span>
+        <span className="grow" />
+        <span className="harness-card__agents">{agents === 1 ? L('1 agente', '1 agent') : L(`${agents} agentes`, `${agents} agents`)}</span>
+      </div>
+    </>
+  ) : null
+
+  return (
+    <div className={`harness ${card ? `harness--card ${picked ? 'is-on' : ''} ${testing ? 'is-open' : ''}` : ''} ${st.soon ? 'is-soon' : ''}`}>
+      {head}
+      {!card && <div className="harness__head">
+        {st.installed ? (
+          <button id={checkId} className={`harness__check ${picked ? 'is-on' : ''}`} disabled={!!st.soon} onClick={toggle} role="checkbox" aria-checked={picked} aria-label={L(`Usar o ${name}`, `Use ${name}`)}>
+            {picked && <Icon name="check" size={12} />}
+          </button>
+        ) : (
+          <span className="harness__check harness__check--none" aria-hidden />
+        )}
+        <EngineMark engine={engine} size={28} />
+        {/* The name is the check's label: a click on it is a click on the check, when there is one. */}
+        <label className="grow harness__name" htmlFor={st.installed ? checkId : undefined}>
+          <strong>{name}</strong>
+          {st.installed && st.account && <span className="harness__account">{st.account}</span>}
+        </label>
+        {!st.installed && !st.soon && !showCmd && (
+          <button className="link harness__more" onClick={() => setShowCmd(true)}>
+            {L('ver o comando', 'see the command')}
+          </button>
+        )}
+        <span className={`harness__state is-${state.tone}`}>
+          <span className="harness__dot" aria-hidden />
+          {state.text}
+        </span>
+        <span className="harness__action">
+          {picked && ready && !st.soon && (
+            <button className="btn btn--ghost btn--sm" aria-expanded={testing} onClick={() => setTesting(!testing)}>
+              {L('Testar', 'Test')}
+            </button>
+          )}
+          {!st.installed && !st.soon && (
+            <button
+              className="btn btn--sm"
+              title={L('Abre um terminal que instala pra você', 'Opens a terminal that installs it for you')}
+              onClick={() => void installEngine(engine).then((r) => (setInstall(r.needsNode ? 'node' : r.opened ? 'started' : null), !r.opened && !r.needsNode && setShowCmd(true)))}
+            >
+              {L('Instalar', 'Install')}
+            </button>
+          )}
+          {st.installed && !st.loggedIn && !st.soon && (
+            <button
+              className="btn btn--sm"
+              title={L(`Abre um terminal com: ${ENGINES[engine].login}`, `Opens a terminal with: ${ENGINES[engine].login}`)}
+              onClick={() => void loginEngine(engine).then((r) => setManual(r.opened ? null : r.command))}
+            >
+              {L('Entrar', 'Sign in')}
+            </button>
+          )}
+        </span>
+      </div>}
       {manual && !st.loggedIn && (
         <div className="harness__body">
           <span className="hint">{L('Não deu pra abrir um terminal daqui. Pra entrar, cole isto no seu terminal:', "A terminal couldn't be opened from here. To sign in, paste this in your terminal:")}</span>
@@ -292,22 +384,22 @@ function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: Engi
       {!st.installed && install === 'started' && <p className="hint harness__body">{L('Instalando no terminal que abriu. Quando terminar, ele aparece aqui sozinho.', 'Installing in the terminal that opened. Once it finishes, it shows up here on its own.')}</p>}
       {!st.installed && install === 'node' && (
         <p className="hint hint--warn harness__body">
-          {L(`O ${ENGINES[engine].label} precisa do Node.js. Instale o Node.js e depois clique em Instalar de novo.`, `${ENGINES[engine].label} needs Node.js. Install Node.js, then click Install again.`)}{' '}
+          {L(`O ${name} precisa do Node.js. Instale o Node.js e depois clique em Instalar de novo.`, `${name} needs Node.js. Install Node.js, then click Install again.`)}{' '}
           <button className="btn btn--ghost btn--sm" onClick={() => openExternal('https://nodejs.org/')}>
             {L('Baixar o Node.js', 'Get Node.js')}
           </button>
         </p>
       )}
-      {!st.installed && (
+      {!st.installed && !st.soon && showCmd && (
         <div className="harness__body">
           {/* npm.cmd: PowerShell blocks npm's .ps1 on a fresh Windows (scripts disabled). */}
-          <span className="hint">{windows ? L('Ou cole no PowerShell:', 'Or paste in PowerShell:') : L('Ou cole no terminal:', 'Or paste in a terminal:')}</span>
-          <code className="harness__cmd">{windows ? (ENGINES[engine].windows ?? ENGINES[engine].install).replace(/^npm /, 'npm.cmd ') : ENGINES[engine].install}</code>
+          <span className="hint">{windows ? L('Cole no PowerShell:', 'Paste in PowerShell:') : L('Cole no terminal:', 'Paste in a terminal:')}</span>
+          <code className="harness__cmd">{cmd}</code>
         </div>
       )}
       {st.warning && <p className="hint hint--warn harness__body">{st.warning}</p>}
-      {st.route === 'gateway' && picked && <p className="hint harness__body">{L(`Os agentes usam esse mesmo gateway. A telemetria do ${ENGINES[engine].label} fica desligada, pra nada sair por fora dele.`, `Agents use this same gateway. ${ENGINES[engine].label}'s telemetry stays off, so nothing leaves around it.`)}</p>}
-      {st.soon && st.installed && <p className="hint harness__body">{L(`A sua configuração já foi encontrada. O Tucano ainda não roda agentes no ${ENGINES[engine].label}: chega numa próxima versão.`, `Your setup was found. Tucano doesn't run agents on ${ENGINES[engine].label} yet: it's coming in a future version.`)}</p>}
+      {st.route === 'gateway' && picked && <p className="hint harness__body">{L(`Os agentes usam esse mesmo gateway. A telemetria do ${name} fica desligada, pra nada sair por fora dele.`, `Agents use this same gateway. ${name}'s telemetry stays off, so nothing leaves around it.`)}</p>}
+      {st.soon && st.installed && <p className="hint harness__body">{L(`A sua configuração já foi encontrada. O Tucano ainda não roda agentes no ${name}: chega numa próxima versão.`, `Your setup was found. Tucano doesn't run agents on ${name} yet: it's coming in a future version.`)}</p>}
       {testing && (
         <div className="harness__body">
           <div className="harness__test">
@@ -326,6 +418,41 @@ function HarnessRow({ engine, st, picked, toggle }: { engine: EngineId; st: Engi
             ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------- a job behind the scenes, as a card (the first run and Settings › Models) ----------
+
+// Every ready harness's models, by harness, for one menu (a hook per harness, in a fixed order).
+export function useModelGroups(): Record<string, Record<string, string>> {
+  const engines = useStore((s) => s.settings.engines)
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- ENGINE_IDS is fixed, so the hooks keep their order
+  const lists = ENGINE_IDS.map((e) => [e, useEngineModels(engines[e].loggedIn && !engines[e].soon && !engines[e].off ? e : undefined)] as const)
+  const groups: Record<string, Record<string, string>> = {}
+  for (const [e, l] of lists) {
+    if (!l.options.length) continue
+    groups[ENGINES[e].label] = Object.fromEntries(l.options.map((o) => [o.value, o.hint ? `${o.label} · ${o.hint}` : o.label]))
+  }
+  return groups
+}
+
+export function JobCard({ title, value, groups, onChange }: { title: string; value: string; groups: Record<string, Record<string, string>>; onChange: (v: string) => void }): ReactNode {
+  const info = modelInfo(value)
+  const name = info?.label ?? (value.includes(':') ? value.slice(value.indexOf(':') + 1) : value)
+  return (
+    <div className="job-card">
+      {info ? <EngineMark engine={info.engine} size={36} /> : <span className="job-card__dot" aria-hidden />}
+      <span className="job-card__text">
+        <span className="job-card__title">{title}</span>
+        <span className="job-card__model">
+          <b>{value ? name : L('Escolher', 'Choose')}</b>
+          {value && <span className={`job-card__tag ${isFastModel(value) ? 'is-fast' : ''}`}>{isFastModel(value) ? L('rápido', 'fast') : L('forte', 'strong')}</span>}
+        </span>
+      </span>
+      <Icon name="caret" size={14} />
+      {/* The whole card is the menu's trigger: the app's Select, laid over it. */}
+      <Select className="job-card__select" aria-label={title} value={value || null} groups={groups} searchable onChange={(v) => v && onChange(v)} />
     </div>
   )
 }
@@ -498,5 +625,18 @@ export function AccountPicker({ draft, patch }: { draft: Agent; patch: (p: Parti
       />
       {chosen && !chosen.loggedIn && <span className="hint hint--warn">{L('Essa conta ainda não entrou: o agente não responde até você entrar nela em Configurações › Modelos.', 'This account isn’t signed in yet: the agent won’t reply until you sign in under Settings › Models.')}</span>}
     </label>
+  )
+}
+
+// Settings › Models' two small jobs, as the first run shows them: who replies and the memory, each a
+// card with its harness's mark, its model and how quick it is; Jev (TypeSafe) is the router's too.
+export function BehindTheScenes({ router, memory, onRouter, onMemory }: { router: string; memory: string; onRouter: (v: string) => void; onMemory: (v: string) => void }): ReactNode {
+  const groups = useModelGroups()
+  const withJev = useMemo(() => ({ ...groups, TypeSafe: { jev: 'Jev' } }), [groups])
+  return (
+    <div className="job-cards">
+      <JobCard title={L('Escolhe quem responde', 'Picks who replies')} value={router} groups={withJev} onChange={onRouter} />
+      <JobCard title={L('Cuida da memória', 'Keeps the memory')} value={memory} groups={groups} onChange={onMemory} />
+    </div>
   )
 }

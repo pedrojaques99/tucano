@@ -124,7 +124,7 @@ it('duplicates configuration and credentials without copying history or mutating
   const sourceFile = join(dir, 'source.db')
   const source = open(sourceFile)
   source.setSettings({ ...defaults, workspaceName: 'Company', context: 'Workspace instructions', routerModel: 'sonnet', onboarding: { done: true, checklistHidden: true, workspaceManagerSeen: true } })
-  source.saveAgent({ id: 'agent', name: 'Aurora', handle: 'aurora', role: 'Research', color: 'sky', instructions: 'Agent instructions', modelId: 'sonnet', effort: 'low', limit: 1000, used: 0, grants: { connector: 'read_write' }, memory: 'auto', computer: false, archived: false, accountId: 'work', fallbackAccountId: 'work' })
+  source.saveAgent({ id: 'agent', name: 'Aurora', handle: 'aurora', role: 'Research', color: 'sky', instructions: 'Agent instructions', modelId: 'sonnet', effort: 'low', limit: 1000, used: 0, grants: { connector: 'read_write' }, memory: 'auto', computer: false, archived: false, accountId: 'work', fallbackModelId: 'sonnet', fallbackAccountId: 'work', moreReserves: [{ modelId: 'sonnet', accountId: 'work' }, { modelId: 'gpt-5.6-luna' }] })
   source.setSettings({ accounts: [{ id: 'work', engine: 'claude', name: 'Work' }] })
   source.createConversation({ id: 'channel', kind: 'channel', name: 'company', members: ['agent'], topic: 'Channel configuration' })
   source.saveConnector({ id: 'connector', name: 'Company tool', kind: 'remote', url: 'https://example.com/mcp', auth: 'token' })
@@ -157,6 +157,9 @@ it('duplicates configuration and credentials without copying history or mutating
   expect(copy.getSettings(defaults).accounts).toBeUndefined()
   expect(copy.agent('agent')?.accountId).toBeUndefined()
   expect(copy.agent('agent')?.fallbackAccountId).toBeUndefined()
+  // The extra reserves stay, in order, each on its harness's usual login.
+  expect(copy.agent('agent')?.moreReserves).toEqual([{ modelId: 'sonnet' }, { modelId: 'gpt-5.6-luna' }])
+  expect(source.agent('agent')?.moreReserves?.[0]?.accountId).toBe('work')
   expect(source.agent('agent')?.accountId).toBe('work')
   expect(copy.conversation('channel')).toMatchObject({ members: ['agent'], topic: 'Channel configuration', summary: undefined, unread: 0 })
   expect(copy.connectors().map((c) => c.name)).toEqual(['Company tool'])

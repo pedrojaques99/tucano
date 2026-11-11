@@ -1,5 +1,5 @@
 import { L, locale, type Lang } from '../../../shared/lang'
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   agentById,
   navigate,
@@ -49,6 +49,8 @@ import {
   skillApplies,
   modelInfo,
   MODELS,
+  MAX_MORE_RESERVES,
+  type Reserve,
   type Agent,
   type AgentColor,
   type Message,
@@ -1843,7 +1845,7 @@ function ReserveModel({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
             )}
           </p>
         </div>
-        <Toggle on={on} onChange={(v) => patch(v ? first() : { fallbackModelId: undefined, fallbackAccountId: undefined })} />
+        <Toggle on={on} onChange={(v) => patch(v ? first() : { fallbackModelId: undefined, fallbackAccountId: undefined, moreReserves: undefined })} />
       </div>
       {on && (
         <ModelPicker
@@ -1874,7 +1876,97 @@ function ReserveModel({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
           {reserveAccounts.length > 0 ? L(' Escolha outra conta em “Conta da reserva”.', ' Pick another one under “Reserve account”.') : ''}
         </p>
       )}
+      {on && <MoreReserves draft={draft} patch={patch} />}
     </div>
+  )
+}
+
+// Reserves after the first, in order: when the reserve is out too, the reply goes on with the next one that is
+// ready (two logins of Claude Code, then Antigravity, then OpenCode, say). Each one is tried once per reply.
+function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent>) => void }): ReactNode {
+  const usable = useStore((s) => usableEngines(s.settings))
+  const accounts = useStore((s) => s.settings.accounts) ?? []
+  const list = draft.moreReserves ?? []
+  // A key per row that stays with it: by index, removing one would hand its picker's state to the next.
+  const ids = useRef<number[]>([])
+  const seq = useRef(0)
+  while (ids.current.length < list.length) ids.current.push(seq.current++)
+  ids.current.length = list.length
+  const set = (next: Reserve[]): void => patch({ moreReserves: next.length ? next : undefined })
+  const remove = (i: number): void => {
+    ids.current.splice(i, 1)
+    set(list.filter((_, j) => j !== i))
+  }
+  // Logins earlier in the chain (the main one, the first reserve, the extras before): one already there is skipped.
+  const loginOf = (modelId: string | undefined, accountId: string | undefined): string => {
+    const m = modelId ? modelInfo(modelId) : undefined
+    const acc = accounts.find((a) => a.id === accountId && a.engine === m?.engine)
+    return `${m?.engine}:${m?.id}@${acc?.id ?? ''}`
+  }
+  const earlier = [loginOf(draft.modelId, draft.accountId), loginOf(draft.fallbackModelId, draft.fallbackAccountId)]
+  const change = (i: number, r: Reserve): void => set(list.map((x, j) => (j === i ? r : x)))
+  // What a new one starts on: a harness not in the chain yet (the same subscription would be out too), else another
+  // account of a harness already in it. None free: the button gives way to how to get one.
+  const nextFree = (): Reserve | undefined => {
+    const inChain = [draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].map((m) => (m ? modelInfo(m)?.engine : undefined))
+    const engine = usable.find((e) => !inChain.includes(e))
+    const model = engine && MODELS.find((m) => m.engine === engine)
+    if (model) return { modelId: model.id }
+    const used = [loginOf(draft.modelId, draft.accountId), loginOf(draft.fallbackModelId, draft.fallbackAccountId), ...list.map((r) => loginOf(r.modelId, r.accountId))]
+    for (const a of accounts.filter((x) => x.loggedIn)) {
+      const modelId = [draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].find((m) => m && modelInfo(m)?.engine === a.engine)
+      if (modelId && !used.includes(loginOf(modelId, a.id))) return { modelId, accountId: a.id }
+    }
+    return undefined
+  }
+  const free = nextFree()
+  return (
+    <>
+      {list.map((r, i) => {
+        const model = modelInfo(r.modelId)
+        const own = accounts.filter((a) => a.engine === model?.engine)
+        const account = own.find((a) => a.id === r.accountId)
+        const login = loginOf(r.modelId, r.accountId)
+        const repeated = earlier.includes(login) || list.slice(0, i).some((x) => loginOf(x.modelId, x.accountId) === login)
+        return (
+          <div key={ids.current[i]} className="field">
+            <span className="field__label">
+              {L(`Reserva ${i + 2}`, `Reserve ${i + 2}`)}
+              <button className="btn btn--sm btn--ghost" title={L('Tirar esta reserva', 'Remove this reserve')} onClick={() => remove(i)}>
+                <Icon name="x" size={11} />
+              </button>
+            </span>
+            <ModelPicker value={r.modelId} onChange={(modelId) => change(i, { modelId, ...(modelInfo(modelId)?.engine === model?.engine && r.accountId ? { accountId: r.accountId } : {}) })} />
+            {model && own.length > 0 && (
+              <Select
+                value={account?.id ?? null}
+                onChange={(v) => change(i, { modelId: r.modelId, ...(v ? { accountId: v } : {}) })}
+                options={[
+                  { value: '', label: L(`A de sempre do ${ENGINES[model.engine].label}`, `${ENGINES[model.engine].label}’s usual one`) },
+                  ...own.map((a) => ({ value: a.id, label: a.name + (a.loggedIn ? '' : L(' (falta entrar)', ' (not signed in)')) }))
+                ]}
+                placeholder={L(`A de sempre do ${ENGINES[model.engine].label}`, `${ENGINES[model.engine].label}’s usual one`)}
+              />
+            )}
+            {account && !account.loggedIn && <span className="hint hint--warn">{L('Essa conta ainda não entrou: esta reserva só funciona depois que você entrar nela em Configurações › Modelos.', 'This account isn’t signed in yet: this reserve only works once you sign in under Settings › Models.')}</span>}
+            {repeated && <span className="hint hint--warn">{L('É o mesmo modelo, na mesma conta de um anterior na fila: esta reserva vai ser pulada.', 'It’s the same model, on the same account as one earlier in the chain: this reserve will be skipped.')}</span>}
+          </div>
+        )
+      })}
+      {list.length < MAX_MORE_RESERVES &&
+        (free ? (
+          <button className="btn btn--sm btn--ghost" onClick={() => set([...list, free])}>
+            <Icon name="plus" size={14} /> {L('Outra reserva, se esta também acabar', 'Another reserve, if this one runs out too')}
+          </button>
+        ) : (
+          <p className="muted small">
+            {L(
+              'Pra outra reserva, falta um login livre: entre em outra conta (Configurações › Modelos › Contas) ou ligue outro programa (Configurações › Modelos).',
+              'Another reserve needs a free login: sign in to another account (Settings › Models › Accounts) or turn on another program (Settings › Models).'
+            )}
+          </p>
+        ))}
+    </>
   )
 }
 

@@ -31,6 +31,8 @@ import {
   type Question,
   type ActivityEntry,
   type Receipt,
+  type Reserve,
+  MAX_MORE_RESERVES,
   type Role,
   type Routine,
   type RoutineRun,
@@ -44,6 +46,24 @@ import {
 } from '../shared/types'
 
 const JEV_KEY = 'typesafe:key' // jev.ts's JEV_SECRET: the router's key goes with the general settings
+
+// Reserves after the first, read back (JSON in the column, or the list itself before a save): only well-formed
+// ones, at most MAX_MORE_RESERVES. Without a first reserve there are none (the chain starts at the first).
+export function reservesFrom(v: unknown): Reserve[] {
+  let list: unknown = v
+  if (typeof v === 'string') {
+    try {
+      list = JSON.parse(v)
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((x): x is Reserve => !!x && typeof x === 'object' && typeof (x as Reserve).modelId === 'string' && !!(x as Reserve).modelId)
+    .map((x) => ({ modelId: x.modelId, ...(typeof x.accountId === 'string' && x.accountId ? { accountId: x.accountId } : {}) }))
+    .slice(0, MAX_MORE_RESERVES)
+}
 
 // Each entry runs once, in order; PRAGMA user_version records how far we got.
 export const MIGRATIONS = [
@@ -498,6 +518,9 @@ export const MIGRATIONS = [
   UPDATE agents SET fallback_model = 'antigravity:' || substr(fallback_model, 8) WHERE fallback_model LIKE 'gemini:%';
   UPDATE receipts SET engine = 'antigravity' WHERE engine = 'gemini';
   UPDATE receipts SET model = 'antigravity:' || substr(model, 8) WHERE model LIKE 'gemini:%';
+  `,
+  `
+  ALTER TABLE agents ADD COLUMN more_reserves TEXT NOT NULL DEFAULT '[]';
   `
 ]
 
@@ -589,7 +612,7 @@ export class Db {
           DELETE FROM services;
           UPDATE conversations SET summary = NULL, summary_until = NULL, summary_at = NULL;
           DELETE FROM settings WHERE key IN ('quota', 'telegram', 'accounts');
-          UPDATE agents SET account = NULL, fallback_account = NULL;
+          UPDATE agents SET account = NULL, fallback_account = NULL, more_reserves = (SELECT json_group_array(json_object('modelId', json_extract(value, '$.modelId'))) FROM json_each(agents.more_reserves)); -- the logins are this computer's: every reserve goes back to its harness's usual one
           DELETE FROM secrets WHERE key LIKE 'telegram:%' OR key = 'github:proxy-key' OR key LIKE '%:oauth_verifier';
           DELETE FROM person_keys;
           DELETE FROM removed_keys;
@@ -700,7 +723,7 @@ export class Db {
         DELETE FROM removed_keys;
         DELETE FROM invites;
         DELETE FROM settings WHERE key IN ('quota', 'telegram', 'accounts', 'wikiDir', 'harnesses');
-        UPDATE agents SET account = NULL, fallback_account = NULL, apps = '[]', folders = '[]', computer = CASE WHEN computer_kind = 'mac' THEN 0 ELSE computer END;
+        UPDATE agents SET account = NULL, fallback_account = NULL, more_reserves = (SELECT json_group_array(json_object('modelId', json_extract(value, '$.modelId'))) FROM json_each(agents.more_reserves)), apps = '[]', folders = '[]', computer = CASE WHEN computer_kind = 'mac' THEN 0 ELSE computer END;
         UPDATE routines SET enabled = 0;
       `)
     })
@@ -770,6 +793,7 @@ export class Db {
       ...(str(r['account']) ? { accountId: str(r['account']) } : {}),
       ...(str(r['fallback_model']) ? { fallbackModelId: str(r['fallback_model']) } : {}),
       ...(str(r['fallback_account']) ? { fallbackAccountId: str(r['fallback_account']) } : {}),
+      ...((more) => (more.length ? { moreReserves: more } : {}))(reservesFrom(r['more_reserves'])),
       effort: str(r['effort']) as Effort,
       limit: Number(r['limit_tokens']),
       maxRoutines: routineCap(Number(r['max_routines'])),
@@ -809,14 +833,14 @@ export class Db {
   saveAgent(a: Agent): void {
     this.db
       .prepare(
-        `INSERT INTO agents (id, name, handle, role, color, instructions, model, fallback_model, fallback_account, account, effort, limit_tokens, max_routines, grants, memory_mode, computer, computer_kind, web, browser, apps, auto_approve, action_rules, autonomy, outside_guard, archived, kind, custom_color, picture, avatar, wiki, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO agents (id, name, handle, role, color, instructions, model, fallback_model, fallback_account, more_reserves, account, effort, limit_tokens, max_routines, grants, memory_mode, computer, computer_kind, web, browser, apps, auto_approve, action_rules, autonomy, outside_guard, archived, kind, custom_color, picture, avatar, wiki, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (id) DO UPDATE SET name = excluded.name, handle = excluded.handle, role = excluded.role,
-           color = excluded.color, instructions = excluded.instructions, model = excluded.model, fallback_model = excluded.fallback_model, fallback_account = excluded.fallback_account, account = excluded.account, effort = excluded.effort,
+           color = excluded.color, instructions = excluded.instructions, model = excluded.model, fallback_model = excluded.fallback_model, fallback_account = excluded.fallback_account, more_reserves = excluded.more_reserves, account = excluded.account, effort = excluded.effort,
            limit_tokens = excluded.limit_tokens, max_routines = excluded.max_routines, grants = excluded.grants, memory_mode = excluded.memory_mode,
            computer = excluded.computer, computer_kind = excluded.computer_kind, web = excluded.web, browser = excluded.browser, apps = excluded.apps, auto_approve = excluded.auto_approve, action_rules = excluded.action_rules, autonomy = excluded.autonomy, outside_guard = excluded.outside_guard, archived = excluded.archived, kind = COALESCE(excluded.kind, agents.kind), custom_color = excluded.custom_color, picture = excluded.picture, avatar = excluded.avatar, wiki = excluded.wiki`
       )
-      .run(a.id, a.name, a.handle, a.role, a.color, a.instructions, a.modelId, a.fallbackModelId || null, a.fallbackAccountId || null, a.accountId || null, a.effort, a.limit, routineCap(a.maxRoutines), JSON.stringify(a.grants), a.memory ?? 'auto', a.computer ? 1 : 0, a.computerKind === 'mac' ? 'mac' : 'linux', a.web === false ? 0 : 1, a.browser ? 1 : 0, JSON.stringify(a.apps ?? []), JSON.stringify(a.autoApprove ?? []), JSON.stringify(cleanRules(a.actionRules)), isAutonomy(a.autonomy) ? a.autonomy : null, a.outsideGuard === undefined ? null : a.outsideGuard ? 1 : 0, a.archived ? 1 : 0, a.kind ?? null, a.customColor ?? null, a.picture ?? null, a.avatar ? JSON.stringify(a.avatar) : null, a.wiki ?? null, Date.now())
+      .run(a.id, a.name, a.handle, a.role, a.color, a.instructions, a.modelId, a.fallbackModelId || null, a.fallbackAccountId || null, JSON.stringify(a.fallbackModelId ? reservesFrom(a.moreReserves ?? []) : []), a.accountId || null, a.effort, a.limit, routineCap(a.maxRoutines), JSON.stringify(a.grants), a.memory ?? 'auto', a.computer ? 1 : 0, a.computerKind === 'mac' ? 'mac' : 'linux', a.web === false ? 0 : 1, a.browser ? 1 : 0, JSON.stringify(a.apps ?? []), JSON.stringify(a.autoApprove ?? []), JSON.stringify(cleanRules(a.actionRules)), isAutonomy(a.autonomy) ? a.autonomy : null, a.outsideGuard === undefined ? null : a.outsideGuard ? 1 : 0, a.archived ? 1 : 0, a.kind ?? null, a.customColor ?? null, a.picture ?? null, a.avatar ? JSON.stringify(a.avatar) : null, a.wiki ?? null, Date.now())
     // An agent made without one belongs to the Tucano's owner; a save that doesn't say keeps it.
     this.db.prepare('UPDATE agents SET owner = COALESCE(?, owner, (SELECT id FROM people WHERE role = ?)) WHERE id = ?').run(a.owner ?? null, 'owner', a.id)
   }

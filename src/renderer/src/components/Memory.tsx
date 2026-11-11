@@ -129,7 +129,7 @@ export function MemoryPage(): ReactNode {
           )}
           {review === 0 && <p className="read-empty">{L('Nada esperando você.', 'Nothing waiting for you.')}</p>}
           <button className="text-btn read-back" onClick={() => setTab('all')}>
-            {L('← Voltar', '← Back')}
+            <Icon name="back" size={14} /> {L('Voltar', 'Back')}
           </button>
         </>
       ) : tab === 'forgotten' ? (

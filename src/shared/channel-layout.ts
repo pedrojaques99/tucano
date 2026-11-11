@@ -1,8 +1,10 @@
-// How the person arranged the channels in the sidebar. Only names and order, so it lives in the
-// workspace's settings. A channel it doesn't know yet shows last, and one that's gone is forgotten.
+// How the person arranged a sidebar list (the channels, the DMs, the agents). Only names and order, so
+// it lives in the settings. An item it doesn't know yet shows last, and one that's gone is forgotten.
+// `channels` holds the ids of whatever the list shows (agents, DMs too): the name stayed from the first one.
 export interface ChannelGroup {
   id: string
   name: string
+  icon?: string // one of the app's icons, before the name
   channels: string[]
 }
 
@@ -72,6 +74,8 @@ export function nudgeChannel(channels: { id: string }[], layout: ChannelLayout |
 export const addGroup = (layout: ChannelLayout = EMPTY_LAYOUT, group: { id: string; name: string }): ChannelLayout => ({ ...layout, groups: [...layout.groups, { ...group, channels: [] }] })
 
 export const renameGroup = (layout: ChannelLayout, id: string, name: string): ChannelLayout => ({ ...layout, groups: layout.groups.map((g) => (g.id === id ? { ...g, name } : g)) })
+
+export const setGroupIcon = (layout: ChannelLayout, id: string, icon: string): ChannelLayout => ({ ...layout, groups: layout.groups.map((g) => (g.id === id ? { ...g, icon } : g)) })
 
 // Its channels go back to the loose ones: deleting a group deletes no channel.
 export const removeGroup = (layout: ChannelLayout, id: string): ChannelLayout => ({

@@ -396,11 +396,15 @@ describe('the sidebar and the missions', () => {
   const geral = { id: 'ch1', kind: 'channel', name: 'geral', members: ['a1'] } as State['conversations'][number]
   const lia: Agent = { id: 'a1', name: 'Lia', handle: 'lia', role: 'Agenda', color: 'violet', instructions: '', modelId: 'sonnet', effort: 'low', limit: 1, used: 0, grants: {}, memory: 'auto', computer: false, archived: false }
   const labels = (): string[] => [...document.querySelectorAll('.nav-item__label')].map((x) => x.textContent ?? '')
+  // Settings, connectors and usage live as icons in the sidebar's footer: places counts both.
+  const icons = (): string[] => [...document.querySelectorAll('.foot-icon')].map((x) => x.getAttribute('aria-label') ?? '')
+  const places = (): string[] => [...labels(), ...icons()]
 
   it('starts short on a new install: the Tuca, what waits on you, the channel, the agent, the missions, the settings', async () => {
     fake = state({ agents: [lia], conversations: [geral], settings: { onboarding: { done: true, fresh: true } } })
     await render(<Sidebar />)
-    expect(labels()).toEqual(['Tuca', 'Aprovações', 'geral', 'Lia', 'Configurações'])
+    expect(labels()).toEqual(['Tuca', 'Aprovações', 'geral', 'Lia'])
+    expect(icons()).toEqual(['Configurações'])
     expect(text()).toContain('Missões')
     expect(text()).toContain('Próxima: fale com Lia')
   })
@@ -408,10 +412,11 @@ describe('the sidebar and the missions', () => {
   it('grows as missions bring parts, tagged new until opened', async () => {
     fake = state({ agents: [lia], conversations: [geral], connectors: [{ id: 'c1' } as State['connectors'][number]], settings: { onboarding: { done: true, fresh: true } } })
     await render(<Sidebar />)
-    expect(labels()).toContain('Conectores')
-    expect(document.querySelector('.nav-item.is-fresh .nav-item__new')?.getAttribute('aria-label')).toBe('novo')
+    expect(icons()).toContain('Conectores')
+    const fresh = document.querySelector('.foot-icon .nav-item__new')
+    expect(fresh?.getAttribute('aria-label')).toBe('novo')
     expect(text()).toContain('Você liberou Conectores')
-    await click(document.querySelector('.nav-item.is-fresh')!)
+    await click(fresh!.closest('.foot-icon')!)
     expect(store.updateSettings).toHaveBeenCalledWith({ onboarding: { done: true, fresh: true, seen: ['connectors'] } })
   })
 
@@ -419,7 +424,7 @@ describe('the sidebar and the missions', () => {
     for (const onboarding of [undefined, { done: true }, { done: true, fresh: true, showAll: true }]) {
       fake = state({ agents: [lia], conversations: [geral], settings: { onboarding } })
       await render(<Sidebar />)
-      expect(labels()).toEqual(expect.arrayContaining(['Memória', 'Wiki', 'Rotinas', 'Skills', 'Boletim', 'Uso e limites', 'Conectores']))
+      expect(places()).toEqual(expect.arrayContaining(['Memória', 'Wiki', 'Rotinas', 'Skills', 'Boletim', 'Uso e limites', 'Conectores']))
     }
   })
 

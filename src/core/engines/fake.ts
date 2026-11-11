@@ -113,6 +113,11 @@ export function fakeEngine(id: Engine['id'], opts: { delayMs?: number; reply?: (
         const id = Number(/apag\w* a tarefa (\d+)/i.exec(last)![1])
         await callTool(turn.mcpUrl, await toolNamed(turn.mcpUrl, 'delete_task'), { id, _motivo: 'Você pediu pra apagar.' })
         reply = `Pedi sua aprovação pra apagar a tarefa #${id}.`
+      } else if (turn.mcpUrl && /no figma,? (?:rode|use) `(\w+)`/i.test(last)) {
+        // A Figma tool through the bridge (Claude Code for real), to see its step say what it's doing.
+        const tool = /no figma,? (?:rode|use) `(\w+)`/i.exec(last)![1]!
+        const r = await callTool(turn.mcpUrl, await toolNamed(turn.mcpUrl, tool), {})
+        reply = textOf(r).slice(0, 300)
       } else if (turn.mcpUrl && /(?:consulte|run the sql) `([^`]+)`/i.test(last)) {
         // A SQL connector's tool (Databricks' execute_sql_read_only), to see its steps and errors.
         const statement = /(?:consulte|run the sql) `([^`]+)`/i.exec(last)![1]!

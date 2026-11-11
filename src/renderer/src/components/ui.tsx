@@ -412,6 +412,12 @@ export function NumberInput({ value, onChange, ...rest }: { value: number; onCha
   )
 }
 
+// An on/off switch, the one the app uses everywhere (connector tools, routines, skills).
+// `label`: what it turns on, for screen readers when no text sits beside it.
+export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }): ReactNode {
+  return <button className={`toggle ${on ? 'is-on' : ''}`} role="switch" aria-checked={on} aria-label={label} title={label} disabled={disabled} onClick={() => onChange(!on)} />
+}
+
 // A harness's official mark on its brand color (engine-logos.ts), or its initial where there's no mark
 // (Grok). The one way the app shows a harness: the introduction, Settings, the model picker, usage.
 export function EngineMark({ engine, size = 44 }: { engine: EngineId; size?: number }): ReactNode {

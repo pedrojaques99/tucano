@@ -9,7 +9,8 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontex
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
-import { L } from '../shared/lang'
+import { join } from 'node:path'
+import { L, locale } from '../shared/lang'
 import { causeText, friendly, netProblem, netText, type Friendly } from '../shared/errors'
 import type { CoreEvent } from '../shared/rpc'
 import { ownAppOf, type AppProvider, type CatalogEntry } from '../shared/connector-catalog'
@@ -55,10 +56,48 @@ export function connectProblem(e: unknown, url?: string): Friendly {
   if (f.detail === raw) return { text: f.text, detail } // a case it knows: no Node.js, a refused login…
   if (/ENOENT/.test(raw)) return { text: L('O comando do conector não foi encontrado. Se ele usa npx, instale o Node.js (nodejs.org).', "The connector's command wasn't found. If it uses npx, install Node.js (nodejs.org)."), detail }
   if (/connection closed/i.test(raw)) return { text: L('O servidor fechou logo ao abrir. Confira o comando e os argumentos do conector.', 'The server closed right after opening. Check the connector’s command and arguments.'), detail }
+  // An answer that isn't what MCP says (a list of validation issues, as the SDK reports it): said in words,
+  // the issues kept as the detail. Figma's desktop server answers like this while the app is still opening.
+  if (/^\s*\[\s*\{[\s\S]*"code"\s*:/.test(raw))
+    return {
+      text: L(
+        `O servidor${host ? ` (${host})` : ''} respondeu num formato que não é o do MCP. Se ele depende de um app aberto (o Figma, por exemplo), abra o app e clique em Conectar de novo.`,
+        `The server${host ? ` (${host})` : ''} answered in a format that isn't MCP's. If it depends on an open app (Figma, say), open the app and click Connect again.`
+      ),
+      detail: raw
+    }
   return detail === raw ? { text: raw } : { text: raw, detail }
 }
 
 export const connectError = (e: unknown, url?: string): string => connectProblem(e, url).text
+
+// A server that ships with Tucano, named in a connector as `tucano <name>`: Tucano's own executable runs
+// it as Node (Electron's ELECTRON_RUN_AS_NODE; plain Node in development and tests), so it needs nothing
+// installed. Its file is built beside this one (electron.vite.config.ts).
+export const BUILTIN = 'tucano'
+export function builtinCommand(command: string | undefined, args: string[] = [], dir = import.meta.dirname): { command: string; args: string[]; env: Record<string, string> } | undefined {
+  if (command !== BUILTIN || args[0] !== 'figma-bridge') return undefined
+  return { command: process.execPath, args: [join(dir, 'figma-bridge.js')], env: { ELECTRON_RUN_AS_NODE: '1', TUCANO_LANG: locale().startsWith('pt') ? 'pt' : 'en' } }
+}
+
+// A server that turned away the app's registration: it signs in only the apps it approved beforehand.
+export function registrationRefused(url?: string): string {
+  let host = ''
+  try {
+    host = new URL(url ?? '').hostname
+  } catch {
+    host = ''
+  }
+  if (/(^|\.)figma\.com$/i.test(host))
+    return L(
+      'A Figma só libera o servidor remoto (mcp.figma.com) pra apps que ela aprovou, e o Tucano ainda não está na lista. Remova este e conecte o Figma da loja, em Design e sites: ele passa pelo Claude Code e tem todas as ferramentas.',
+      "Figma only opens its remote server (mcp.figma.com) to apps it approved, and Tucano isn't on that list yet. Remove this one and connect Figma from the store, under Design and websites: it goes through Claude Code and has every tool."
+    )
+  return L(
+    'Esse servidor só aceita apps que ele aprovou antes, e recusou o registro do Tucano. Conectar de novo não resolve: adicione com um token, se o serviço oferecer, ou use a versão local do servidor.',
+    "This server only takes apps it approved beforehand, and it refused Tucano's registration. Connecting again won't fix it: add it with a token, if the service offers one, or use the server's local version."
+  )
+}
 
 // The text of a tool's result: its text blocks, the text of embedded resources, and the structured content
 // when that's all there is (a server may put an error's reason only there).
@@ -471,6 +510,7 @@ export class ConnectorManager {
     )
     let transport: Transport
     const renewal: Renewal = {}
+    const registration = { pending: false } // the sign-in got as far as registering the app, and no registration came back
     const own = c.kind === 'remote' && c.auth === 'oauth' ? this.appOf(c.url) : undefined
     if (own && !(await this.deps.secrets.getJson<OwnApp>(appKey(own.provider)))) {
       const name = PROVIDER[own.provider]
@@ -484,7 +524,7 @@ export class ConnectorManager {
           const token = await this.deps.secrets.get(key(id, 'token'))
           if (token) headers['Authorization'] = `Bearer ${await resolveOp(token, this.deps.readOp)}`
         }
-        const provider = c.auth === 'oauth' ? this.oauthProvider(id, () => http, interactive, own) : undefined
+        const provider = c.auth === 'oauth' ? this.oauthProvider(id, () => http, interactive, own, (pending) => (registration.pending = pending)) : undefined
         const fetchFn = c.auth === 'oauth' ? this.renewingFetch(renewal) : undefined
         const http: StreamableHTTPClientTransport = new StreamableHTTPClientTransport(new URL(c.url!), {
           requestInit: { headers },
@@ -509,7 +549,8 @@ export class ConnectorManager {
         }
       } else {
         const env = await resolveOpRefs((await this.deps.secrets.getJson<Record<string, string>>(key(id, 'env'))) ?? {}, this.deps.readOp)
-        transport = new StdioClientTransport({ command: c.command!, args: c.args, env: { ...getDefaultEnvironment(), ...env }, stderr: 'ignore' })
+        const builtin = builtinCommand(c.command, c.args)
+        transport = new StdioClientTransport({ command: builtin?.command ?? c.command!, args: builtin?.args ?? c.args, env: { ...getDefaultEnvironment(), ...env, ...builtin?.env }, stderr: 'ignore' })
       }
     } catch (e) {
       // A 1Password secret that wasn't read, or a saved one the system's key won't open: it needs you, so no retries.
@@ -562,6 +603,10 @@ export class ConnectorManager {
             "This server doesn't let apps register through the browser. Add it again with token authentication (on GitHub: a personal access token, from github.com/settings/personal-access-tokens)."
           )
         )
+      } else if (registration.pending && e instanceof Error && /^HTTP 40[13]\b|forbidden/i.test(e.message)) {
+        // Figma's remote server, for one: it registers only the apps on its own list. Trying again gets the same answer.
+        await client.close().catch(() => {})
+        this.setStatus(id, 'error', registrationRefused(c.url))
       } else if (e instanceof Error && /timed out/i.test(e.message)) {
         await client.close().catch(() => {})
         this.setStatus(id, 'error', L(`O servidor não respondeu em ${CONNECT_TIMEOUT_MS / 1000} s. Confira o endereço e a sua rede.`, `The server didn't answer in ${CONNECT_TIMEOUT_MS / 1000} s. Check the address and your network.`))
@@ -633,8 +678,10 @@ export class ConnectorManager {
 
   // Runs a tool on the real server, reconnecting on demand. Stdio servers that
   // keep failing are marked as having a problem. What it throws says why, in words.
-  async call(id: string, name: string, args: Record<string, unknown>): Promise<CallToolResult> {
+  // `onProgress`: what the server says while the call runs (a server that sends progress, like the Figma bridge).
+  async call(id: string, name: string, args: Record<string, unknown>, onProgress?: (message: string) => void): Promise<CallToolResult> {
     const timeout = this.deps.callTimeoutMs ?? CALL_TIMEOUT_MS
+    const opts = { timeout, ...(onProgress ? { onprogress: (p: { message?: string }) => p.message && onProgress(p.message), resetTimeoutOnProgress: true } : {}) }
     let l = this.live.get(id)
     if (!l?.client) {
       await this.connect(id)
@@ -642,7 +689,7 @@ export class ConnectorManager {
     }
     if (!l?.client) throw new Error(L(`O conector ${this.deps.db.connector(id)?.name ?? id} não está conectado`, `The connector ${this.deps.db.connector(id)?.name ?? id} isn't connected`) + (l?.error ? `: ${l.error}.` : '.'))
     try {
-      const r = (await l.client.callTool({ name, arguments: args }, undefined, { timeout })) as CallToolResult
+      const r = (await l.client.callTool({ name, arguments: args }, undefined, opts)) as CallToolResult
       l.failures = 0
       return this.explained(id, r)
     } catch (e) {
@@ -652,7 +699,7 @@ export class ConnectorManager {
         const again = this.live.get(id)?.client
         if (again) {
           try {
-            return this.explained(id, (await again.callTool({ name, arguments: args }, undefined, { timeout })) as CallToolResult)
+            return this.explained(id, (await again.callTool({ name, arguments: args }, undefined, opts)) as CallToolResult)
           } catch (e2) {
             failure = e2
           }
@@ -794,7 +841,13 @@ export class ConnectorManager {
   }
 
   // `own`: a server that signs in with the person's own app (Google's, Slack's) instead of registering one.
-  private oauthProvider(id: string, transport: () => StreamableHTTPClientTransport, interactive: boolean, own?: CatalogEntry['app']): OAuthClientProvider {
+  private oauthProvider(
+    id: string,
+    transport: () => StreamableHTTPClientTransport,
+    interactive: boolean,
+    own?: CatalogEntry['app'],
+    onRegistering: (pending: boolean) => void = () => {}
+  ): OAuthClientProvider {
     const { secrets } = this.deps
     const redirectUrl = own ? this.redirectFor(own.provider) : this.deps.oauthCallbackUrl()
     // Signing in again (someone clicked Authorize) goes on past a saved value the system's key won't open:
@@ -836,9 +889,14 @@ export class ConnectorManager {
         }
         const info = await read<OAuthClientInformationMixed & { redirect_uris?: string[] }>(key(id, 'oauth_client'))
         const fits = (u: string): boolean => (interactive ? u === redirectUrl : sameLoopbackRedirect(u, redirectUrl))
-        return info && (!info.redirect_uris || info.redirect_uris.some(fits)) ? info : undefined
+        const found = info && (!info.redirect_uris || info.redirect_uris.some(fits)) ? info : undefined
+        onRegistering(!found) // none saved: the SDK registers the app next
+        return found
       },
-      saveClientInformation: (info) => (own ? undefined : secrets.setJson(key(id, 'oauth_client'), { ...info, redirect_uris: [redirectUrl] })),
+      saveClientInformation: (info) => {
+        onRegistering(false)
+        return own ? undefined : secrets.setJson(key(id, 'oauth_client'), { ...info, redirect_uris: [redirectUrl] })
+      },
       // A sign-in the server turned away even renewed isn't offered when signing in again: the SDK would renew it
       // once more instead of going to the browser.
       tokens: () => (interactive && this.freshSignIn.has(id) ? Promise.resolve(undefined) : read<OAuthTokens>(key(id, 'oauth_tokens'))),

@@ -26,7 +26,7 @@ import { applyRestore } from '../core/restore'
 import { verifyLocal } from '../core/local-paths'
 import { pairingLink } from '../shared/servers'
 import { ACCESS_SHIM, INSECURE_CONTEXT_SHIM } from './web-shim'
-import { Grants, invitePage, joinFields, NO_ACCESS_PAGE, notifyNote, personNotice, Signins, Streams, UNAUTHORIZED_TEXT, Viewers, type Stream, type Who } from './people'
+import { Grants, invitePage, joinFields, NO_ACCESS_PAGE, notifyNote, personNotice, Signins, Streams, UNAUTHORIZED_PAGE, Viewers, type Stream, type Who } from './people'
 import type { Person } from '../shared/types'
 
 const dataDir = process.env['TUCANO_DATA'] || join(homedir(), '.tucano-server')
@@ -317,7 +317,7 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
       if (r.status === 'blocked') return void res.writeHead(429, { ...BASE_HEADERS, 'retry-after': '600' }).end()
       // Someone removed: their page says so (the bridge reads the 401), and nothing more.
       if (r.status === 'removed') return htmlPage(res, NO_ACCESS_PAGE, 401)
-      res.writeHead(401, { ...BASE_HEADERS, 'content-type': 'text/plain; charset=utf-8' }).end(UNAUTHORIZED_TEXT)
+      htmlPage(res, UNAUTHORIZED_PAGE, 401)
     })
     .catch((e: unknown) => {
       console.error('[server]', req.method, e instanceof Error ? e.message : e)

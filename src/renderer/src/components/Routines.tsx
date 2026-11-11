@@ -514,20 +514,21 @@ function Calendar({
             )
           })}
         </div>
-        {empty && (
-          <div className="cal__empty">
-            <strong>{L('Clique num horário pra criar uma rotina.', 'Click a time slot to create a routine.')}</strong>
-            <span>{L('Ou comece por um destes:', 'Or start from one of these:')}</span>
-            <div>
-              {EXAMPLES().map((ex) => (
-                <button key={ex.name} onClick={() => onExample(ex)}>
-                  {ex.name} <span>{describeSchedule(ex)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+      {/* Outside the scroller: on a phone it is 640px wide, and the card has to fit the screen. */}
+      {empty && (
+        <div className="cal__empty">
+          <strong>{L('Clique num horário pra criar uma rotina.', 'Click a time slot to create a routine.')}</strong>
+          <span>{L('Ou comece por um destes:', 'Or start from one of these:')}</span>
+          <div>
+            {EXAMPLES().map((ex) => (
+              <button key={ex.name} onClick={() => onExample(ex)}>
+                {ex.name} <span>{describeSchedule(ex)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -55,6 +55,39 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 - **A message in a channel that answers in threads opens its thread.** There, each message you write in the channel starts a thread of its own, where the answers go, and you had to find its link under the message to follow them. Now the thread opens on the side as soon as your message is sent (full screen on a phone). A reply written in a thread, a channel that answers in the conversation, or a message from another of your devices leaves the panel as it was. Thanks, b7s! (#347)
 
 - **Your own memories are named "You" on the Memory page.** The tab read "About you" ("Sobre você"), which wrapped to two lines once a few agents had notes of their own and the tab strip got crowded. It now reads "You" ("Você"), and so does the heading inside it. Only the name changed: the memories and where they're kept are the same. Thanks, apoapostolov! (#296)
+### Fixed
+
+- **An OpenCode reply makes one model call, not two.** OpenCode named each new session with a second call (its title agent), and every turn is a new session whose title the app never shows: it only spent tokens on a paid provider, the free models' quota, and on an OpenAI-compatible agent endpoint a whole extra agent turn. It's off now, on OpenCode 1.x and 2.x.
+### Added
+
+- **An agent keeps answering through a chain of reserves.** One reserve covered one more login: when the main model ran out of quota, the reply went to the reserve once, and failed if that was out too. Now up to 3 more come after the first, each a model and, optionally, one of its harness's accounts: Claude Code on two accounts, then Antigravity, then OpenCode, say, keep an agent answering through a whole day of 5-hour and weekly windows. The reply moves to the next one that's ready, each tried once, skipping a login that isn't signed in or was already tried; never after a tool call, and the next reply starts on the main model again, as before. The agent's page lists them under the first reserve, with **Another reserve, if this one runs out too**, which starts on a login not in the chain yet (another program, else another account) or says how to get one, and warns about a reserve that would be skipped.
+### Fixed
+
+- **An approval's Refuse button stays on screen on a phone.** The approval card put Approve, Approve and always allow, and Refuse on one line that didn't wrap, so at phone width (where server mode sends people to approve) Refuse was cut off past the edge and the conversation scrolled sideways. The buttons now wrap to a second line.
+### Fixed
+
+- **The tabs of Settings and of an agent's page scroll on a phone.** They sat in one row that couldn't scroll or wrap, so at phone width the last tab was cut off, a long label broke over two lines, and the whole page scrolled sideways. The tab row now scrolls sideways on its own and each label stays on one line.
+### Fixed
+
+- **Routines fit a phone.** The card of an empty week sat inside the week, which on a phone is 640 px wide and scrolls sideways, so its title and third template were cut off; it now sits over the visible calendar and its templates wrap. In a routine's form, the three "When it runs" choices and the row of weekdays forced the form 161 px wider than the screen; the choices now wrap inside their buttons and the time goes under the weekdays.
+### Fixed
+
+- **A connector's tool list keeps its On toggle on a phone.** The list had fixed columns for the class, High risk and On, and a tool-name column that wouldn't shrink, so at phone width the toggles were cut in half past the edge of the connector's window. On a phone the columns are narrower and a long tool name wraps.
+### Fixed
+
+- **Install commands fit their box.** In Settings › Models, a harness's install command (like Antigravity's `irm https://antigravity.google/cli/install.ps1 | iex`) didn't wrap, so on a phone it ran past the edge and the whole tab scrolled sideways. It wraps now, on the code background the rest of the app uses; that box, the code of a sign-in in the server's terminal, a routine's webhook and the wiki's git folder pointed at color tokens that don't exist.
+### Fixed
+
+- **The sleeping toucan shows on the dark theme.** The empty Approvals page (and For you, with a team) draws a sleeping toucan whose body was a fixed near-black, so on the dark theme only its closed eyes and beak floated on the page. Its body now takes the text color and its eyes the panel color, so it reads on both themes.
+### Fixed
+
+- **A connector's window no longer says sensitive tools always ask.** It did, while the approval card two clicks later offers "Approve and always allow" for that same tool, and an agent's autonomy can let it run them alone. The note now says they ask for approval, except the ones marked "always allow" and what the agent's autonomy lets it do alone.
+### Fixed
+
+- **Small fixes around the window.** An empty channel showed a spark that looks like a loading spinner over "Nothing here yet"; it shows the channel's # now (a speech bubble in a DM). "Buscar skills existentes" no longer breaks over two lines on the Skills page. The back links of a page and of Memory's review use the app's arrow icon instead of a ← typed into the text. Azure DevOps reads "Itens de trabalho" in Portuguese, not "Work items".
+### Fixed
+
+- **Opening a server's Tucano without a link shows a readable page.** A browser that wasn't signed in got plain text with no viewport, so on a phone it was tiny and showed the Markdown backticks around the command. It's now a page like the server's others (the invite, the no-access one), in Portuguese and English, on the system's light or dark theme.
 
 ## [0.2.27] - 2026-11-10
 

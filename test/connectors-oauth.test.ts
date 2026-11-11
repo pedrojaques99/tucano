@@ -26,6 +26,7 @@ let rotate: boolean
 let tokenDelayMs: number
 let tokenDown: number // the next refreshes answer 503
 let calls: number
+let registrationForbidden: boolean // answers like Figma's remote server to an app it didn't approve
 
 const body = async (req: import('node:http').IncomingMessage): Promise<string> => {
   const chunks: Buffer[] = []
@@ -43,6 +44,7 @@ beforeEach(async () => {
   tokenDelayMs = 0
   tokenDown = 0
   calls = 0
+  registrationForbidden = false
   let current = '' // only the newest access token works, as if the older one had expired
   expireAccessToken = () => {
     current = ''
@@ -72,6 +74,7 @@ beforeEach(async () => {
       }
       if (req.method === 'POST' && url.pathname === '/register') {
         registrations += 1
+        if (registrationForbidden) return void res.writeHead(403, { 'content-type': 'text/plain' }).end('Forbidden')
         return json(201, { ...JSON.parse(await body(req)), client_id: `client-${registrations}` })
       }
       if (req.method === 'POST' && url.pathname === '/token') {
@@ -188,6 +191,22 @@ describe('OAuth credentials across launches', () => {
     expect(again.searchParams.get('client_id')).toBe('client-2')
     expect(again.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:51002/oauth/callback')
     await second.closeAll()
+  })
+})
+
+describe('a server that registers only the apps it approved', () => {
+  it('says the registration was refused, instead of the raw OAuth error, and stops retrying', async () => {
+    registrationForbidden = true
+    const app = launch(51001)
+    const id = await app.add({ name: 'figma', kind: 'remote', url: `${base}/mcp`, auth: 'oauth' })
+    await app.connect(id)
+    expect(await app.authorize(id)).toBeUndefined()
+    const c = app.get(id)!
+    expect(c.status).toBe('error')
+    expect(c.error).toMatch(/approved beforehand|aprovou antes/)
+    expect(c.error).not.toMatch(/SyntaxError|Invalid OAuth/)
+    expect(opened).toHaveLength(0)
+    await app.closeAll()
   })
 })
 

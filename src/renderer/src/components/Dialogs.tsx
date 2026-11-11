@@ -3,8 +3,10 @@
 // menu and the channel's header open the same ones.
 import { L } from '../../../shared/lang'
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as KeyEvent, type ReactNode } from 'react'
-import { agentById, amAdmin, archiveAgent, canEditChannel, isTeam, openTuca, createChannel, finishConnectorAuth, getState, navigate, openDialog, openDm, renameChannel, setChannelMembers, setThreads, setTopic, shortcut, useStore, type Conversation, type State, type View } from '../store'
-import { AgentAvatar, Icon, type IconName } from './ui'
+import { agentById, amAdmin, archiveAgent, canEditChannel, isTeam, openTuca, createChannel, finishConnectorAuth, getState, navigate, openDialog, openDm, openPanel, renameChannel, setChannelMembers, setThreads, setTopic, shortcut, useStore, type Conversation, type State, type View } from '../store'
+import { call } from '../rpc'
+import { PanelResize } from './SidebarResize'
+import { AgentAvatar, Icon, Toggle, type IconName } from './ui'
 import { WorkspaceManager } from './WorkspaceManager'
 import { Modal } from './Modal'
 import { LoginHost } from './LoginTerminal'
@@ -480,5 +482,102 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
         )
       )}
     </div>
+  )
+}
+
+// A conversation's settings beside it, instead of over it: name and topic (a channel's), where the agents
+// answer, who is in it, and whether the wiki keeps it. Each change saves as it's made.
+export function ChatSidePanel({ id }: { id: string }): ReactNode {
+  const conv = useStore((s) => s.conversations.find((c) => c.id === id))
+  const agents = useStore((s) => s.agents.filter(isTeam))
+  const editable = useStore((s) => !!conv && canEditChannel(s, conv))
+  const dmName = useStore((s) => (conv?.kind === 'dm' && conv.members[0] ? agentById(s, conv.members[0])?.name : undefined))
+  const [name, setName] = useState(conv?.name ?? '')
+  const [topic, setTopicText] = useState(conv?.topic ?? '')
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!conv) return null
+  const channel = conv.kind === 'channel'
+  const done = (p: Promise<unknown> | undefined): void => {
+    if (!p) return
+    setError(null)
+    p.then(() => setSaved(true), (e: unknown) => setError(message(e)))
+  }
+  const commitName = (): void => {
+    if (name.trim() && name.trim() !== conv.name) done(renameChannel(conv.id, name))
+  }
+  const commitTopic = (): void => {
+    if (topic.trim() !== (conv.topic ?? '')) done(setTopic(conv.id, topic))
+  }
+  const toggleMember = (agentId: string, on: boolean): void =>
+    done(setChannelMembers(conv.id, on ? [...conv.members, agentId] : conv.members.filter((m) => m !== agentId)))
+  return (
+    <aside className="side-panel side-panel--chat">
+      <PanelResize />
+      <header className="side-panel__head">
+        <Icon name={channel ? 'hash' : 'gear'} size={14} />
+        <strong className="side-panel__title">{channel ? conv.name : L(`Conversa com ${dmName ?? 'o agente'}`, `Conversation with ${dmName ?? 'the agent'}`)}</strong>
+        <span className="grow" />
+        {saved && !error && <span className="saved">{L('Salvo', 'Saved')}</span>}
+        <button className="icon-btn" title={L('Fechar', 'Close')} onClick={() => openPanel(null)}>
+          <Icon name="x" size={15} />
+        </button>
+      </header>
+      <div className="chat-panel__body">
+        {error && <p className="field__error">{error}</p>}
+        {channel && (
+          <section className="chat-panel__section">
+            <label className="field">
+              <span className="field__label">{L('Nome', 'Name')}</span>
+              <span className="row row--center modal__input">
+                <span className="muted">#</span>
+                <input className="grow" value={name} readOnly={!editable} onChange={(e) => setName(e.target.value)} onBlur={commitName} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+              </span>
+            </label>
+            <label className="field">
+              <span className="field__label">{L('Tema', 'Topic')}</span>
+              <span className="row row--center modal__input">
+                <input className="grow" value={topic} readOnly={!editable} placeholder={L('Pra que serve o canal, numa linha', 'What the channel is for, in one line')} onChange={(e) => setTopicText(e.target.value)} onBlur={commitTopic} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+              </span>
+            </label>
+          </section>
+        )}
+        {editable && (
+          <section className="chat-panel__section">
+            <div className="chat-panel__row">
+              <span>
+                <b>{L('Respostas em threads', 'Answers in threads')}</b>
+                <small>{L('Cada mensagem abre uma thread na lateral. Desligado, as respostas vêm logo abaixo.', 'Each message opens a thread on the side. Off, answers come right below.')}</small>
+              </span>
+              <Toggle on={!!conv.threads} label={L('Respostas em threads', 'Answers in threads')} onChange={(v) => done(setThreads(conv.id, v))} />
+            </div>
+            <div className="chat-panel__row">
+              <span>
+                <b>{L('Guardar na wiki', 'Keep in the wiki')}</b>
+                <small>{L('O que dura desta conversa vai pra wiki.', 'What lasts from this conversation goes to the wiki.')}</small>
+              </span>
+              <Toggle on={conv.wikiCapture !== false} label={L('Guardar na wiki', 'Keep in the wiki')} onChange={(on) => done(call('setWikiCapture', { conversationId: conv.id, on }))} />
+            </div>
+          </section>
+        )}
+        {channel && (
+          <section className="chat-panel__section">
+            <h3 className="chat-panel__title">
+              {L('Agentes no canal', 'Agents in the channel')} <span className="muted">{conv.members.filter((m) => agents.some((a) => a.id === m)).length}</span>
+            </h3>
+            {agents.map((a) => (
+              <div key={a.id} className="chat-panel__row chat-panel__member">
+                <AgentAvatar agent={a} size={22} />
+                <span>
+                  <b>{a.name}</b>
+                  {a.role && <small>{a.role}</small>}
+                </span>
+                {editable ? <Toggle on={conv.members.includes(a.id)} label={a.name} onChange={(v) => toggleMember(a.id, v)} /> : conv.members.includes(a.id) ? <Icon name="check" size={13} /> : null}
+              </div>
+            ))}
+          </section>
+        )}
+      </div>
+    </aside>
   )
 }

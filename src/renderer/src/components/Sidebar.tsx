@@ -14,6 +14,8 @@ import {
   navigate,
   openDialog,
   setTab,
+  openAgent,
+  openPanel,
   openDm,
   pendingApprovals,
   pendingMemories,
@@ -34,12 +36,12 @@ import {
   type View
 } from '../store'
 import type { SidebarPart } from '../../../shared/onboarding'
-import { addGroup, arrange, moveChannel, nudgeChannel, removeGroup, renameGroup, type ChannelLayout } from '../../../shared/channel-layout'
+import { addGroup, arrange, moveChannel, nudgeChannel, removeGroup, renameGroup, setGroupIcon, type ChannelLayout } from '../../../shared/channel-layout'
 import { call } from '../rpc'
 import { ContextMenu, confirmDialog, type MenuItem, type MenuState } from './Dialogs'
 import { FoldToggle, useFold } from './Fold'
-import { MissionsCard, useSidebarParts } from './Missions'
-import { UsageDock } from './UsageDock'
+import { MissionsCard, MissionsChip, useSidebarParts } from './Missions'
+import { UsageDock, windowsOf } from './UsageDock'
 import { UpdateNote } from './Update'
 import { WorkspaceSelector } from './Workspaces'
 import { AgentAvatar, Icon, MeAvatar, TucaMark, useJustEnded, type IconName } from './ui'
@@ -61,6 +63,18 @@ function NavItem({ view, icon, label, badge, fresh }: { view: View; icon: IconNa
       ) : fresh ? (
         <span className="nav-item__new" role="img" aria-label={L('novo', 'new')} />
       ) : null}
+    </button>
+  )
+}
+
+// A screen you visit now and then, as an icon in the sidebar's foot: its name on hover, and the dot
+// when it's new (the missions brought it).
+function FootIcon({ view, icon, label, fresh }: { view: View; icon: IconName; label: string; fresh?: () => void }): ReactNode {
+  const active = useStore((s) => same(s.view, view))
+  return (
+    <button className={`foot-icon ${active ? 'is-active' : ''}`} aria-label={label} title={label} onClick={() => (fresh?.(), navigate(view))}>
+      <Icon name={icon} size={16} />
+      {fresh && <span className="nav-item__new" role="img" aria-label={L('novo', 'new')} />}
     </button>
   )
 }
@@ -99,13 +113,14 @@ function Section({ id, label, unread = 0, waiting, action, children }: { id: str
 }
 
 // A group folds like the sections, in the same list (Fold.tsx), and keeps showing the channel you're in.
-function GroupFold({ id, label, unread, waiting, head, naming, children }: { id: string; label: string; unread: number; waiting?: boolean; head: HTMLAttributes<HTMLDivElement>; naming?: ReactNode; children: ReactNode }): ReactNode {
+function GroupFold({ id, label, icon, unread, waiting, head, naming, children }: { id: string; label: string; icon?: IconName; unread: number; waiting?: boolean; head: HTMLAttributes<HTMLDivElement>; naming?: ReactNode; children: ReactNode }): ReactNode {
   const { open, toggle } = useFold(`group:${id}`)
   return (
     <div className={`channel-group ${open ? '' : 'is-folded'}`}>
       {naming || (
         <div className="channel-group__head" {...head}>
           <FoldToggle open={open} onToggle={toggle}>
+            <Icon name={icon ?? 'folder'} size={13} />
             {label}
           </FoldToggle>
           {!open && waiting && <WaitingMark title={L('Um agente está esperando você aqui', 'An agent is waiting for you in here')} />}
@@ -114,6 +129,153 @@ function GroupFold({ id, label, unread, waiting, head, naming, children }: { id:
       )}
       {children}
     </div>
+  )
+}
+
+// The icons a group can take (Sidebar groups): from the app's own set, never emoji.
+const GROUP_ICONS: IconName[] = ['folder', 'users', 'spark', 'zap', 'globe', 'book', 'chart', 'terminal', 'laptop', 'edit', 'shield', 'clock', 'phone', 'layers']
+
+// A sidebar list the person arranges, the same for channels, DMs and agents: the loose items first, then
+// the groups (icon, name, fold). An item moves by dragging or from its menu (`arranging`: up, down, to a
+// group, out of it, a new group with it); a group's own menu renames it, changes its icon or undoes it.
+// `waitingIn`: the conversation an item is (a channel) or has (an agent's DM), so a folded group says
+// when an agent waits on me in one of them.
+function GroupedList<T extends { id: string; unread?: number }>({
+  items,
+  layout,
+  save,
+  noun,
+  open,
+  waitingIn,
+  menuOf,
+  dragLabel,
+  render
+}: {
+  items: T[]
+  layout?: ChannelLayout
+  save: (next: ChannelLayout) => void
+  noun: string
+  open: (e: React.MouseEvent, items: MenuItem[]) => void
+  waitingIn?: (item: T) => string | undefined
+  menuOf: (item: T, arranging: MenuItem[]) => MenuItem[]
+  dragLabel: (item: T) => string
+  render: (item: T) => ReactNode
+}): ReactNode {
+  const arranged = arrange(items, layout)
+  const whole: ChannelLayout = { loose: arranged.loose.map((c) => c.id), groups: arranged.groups.map((g) => ({ ...g, channels: g.channels.map((c) => c.id) })) }
+  const waitingGroups = useStore((s) => (waitingIn ? arranged.groups.filter((g) => anyWaiting(s, g.channels.flatMap((c) => waitingIn(c) ?? []))).map((g) => g.id).join(' ') : '')).split(' ')
+  const [naming, setNaming] = useState<string | null>(null)
+  const [picking, setPicking] = useState<string | null>(null)
+  const newGroup = (itemId: string): void => {
+    const id = crypto.randomUUID()
+    save(moveChannel(items, addGroup(layout, { id, name: L('Novo grupo', 'New group') }), itemId, { group: id }))
+    setNaming(id)
+  }
+  const dragged = useRef<string | null>(null)
+  const accept = (e: React.DragEvent): void => {
+    if (dragged.current) e.preventDefault()
+  }
+  const dropOn = (to: { group?: string; before?: string }): HTMLAttributes<HTMLDivElement> => ({
+    onDragEnter: accept,
+    onDragOver: accept,
+    onDrop: (e: React.DragEvent): void => {
+      const id = dragged.current
+      if (!id) return
+      e.preventDefault()
+      e.stopPropagation()
+      dragged.current = null
+      save(moveChannel(items, layout, id, to))
+    }
+  })
+  const arranging = (c: T): MenuItem[] => [
+    { label: L('Mover para cima', 'Move up'), onClick: () => save(nudgeChannel(items, layout, c.id, -1)) },
+    { label: L('Mover para baixo', 'Move down'), onClick: () => save(nudgeChannel(items, layout, c.id, 1)) },
+    ...arranged.groups.filter((g) => !g.channels.includes(c)).map((g): MenuItem => ({ label: L(`Mover para ${g.name}`, `Move to ${g.name}`), onClick: () => save(moveChannel(items, layout, c.id, { group: g.id })) })),
+    ...(arranged.groups.some((g) => g.channels.includes(c)) ? [{ label: L('Tirar do grupo', 'Take out of the group'), onClick: () => save(moveChannel(items, layout, c.id, {})) }] : []),
+    { label: L(`Novo grupo com ${noun}`, `New group with ${noun}`), icon: 'plus', onClick: () => newGroup(c.id) }
+  ]
+  const row = (c: T, group?: string): ReactNode => (
+    <div
+      key={c.id}
+      draggable
+      onDragStart={(e) => {
+        dragged.current = c.id
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', dragLabel(c))
+      }}
+      onDragEnd={() => (dragged.current = null)}
+      onContextMenu={(e) => open(e, menuOf(c, arranging(c)))}
+      {...dropOn({ group, before: c.id })}
+    >
+      {render(c)}
+    </div>
+  )
+  return (
+    <>
+      {arranged.loose.map((c) => row(c))}
+      {/* Dropped here, an item goes last among those in no group. */}
+      <div className="channel-drop" {...dropOn({})} />
+      {arranged.groups.map((g) => (
+        <GroupFold
+          key={g.id}
+          id={g.id}
+          label={g.name}
+          icon={GROUP_ICONS.includes(g.icon as IconName) ? (g.icon as IconName) : undefined}
+          unread={g.channels.reduce((n, c) => n + (c.unread ?? 0), 0)}
+          waiting={waitingGroups.includes(g.id)}
+          head={{
+            ...dropOn({ group: g.id }),
+            onContextMenu: (e) =>
+              open(e, [
+                { label: L('Renomear', 'Rename'), icon: 'edit', onClick: () => setNaming(g.id) },
+                { label: L('Trocar ícone', 'Change icon'), icon: (g.icon as IconName) ?? 'folder', onClick: () => setPicking(g.id) },
+                { label: L('Desfazer o grupo', 'Ungroup'), icon: 'trash', onClick: () => save(removeGroup(whole, g.id)) }
+              ])
+          }}
+          naming={
+            naming === g.id && (
+              <input
+                className="channel-group__name"
+                autoFocus
+                defaultValue={g.name}
+                aria-label={L('Nome do grupo', 'Group name')}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  save(renameGroup(whole, g.id, e.target.value.trim() || g.name))
+                  setNaming(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') e.currentTarget.value = g.name
+                  if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
+                }}
+              />
+            )
+          }
+        >
+          {picking === g.id && (
+            // The group's icon, picked under its name; Escape or a pick closes it.
+            <div className="group-icons" role="radiogroup" aria-label={L('Ícone do grupo', 'Group icon')} onKeyDown={(e) => e.key === 'Escape' && setPicking(null)}>
+              {GROUP_ICONS.map((name) => (
+                <button
+                  key={name}
+                  role="radio"
+                  aria-checked={(g.icon ?? 'folder') === name}
+                  className={`group-icons__pick ${(g.icon ?? 'folder') === name ? 'is-on' : ''}`}
+                  autoFocus={(g.icon ?? 'folder') === name}
+                  onClick={() => {
+                    save(setGroupIcon(whole, g.id, name))
+                    setPicking(null)
+                  }}
+                >
+                  <Icon name={name} size={14} />
+                </button>
+              ))}
+            </div>
+          )}
+          {g.channels.map((c) => row(c, g.id))}
+        </GroupFold>
+      ))}
+    </>
   )
 }
 
@@ -159,6 +321,11 @@ export function Sidebar(): ReactNode {
   const me = youPerson({ people, you })
   // A new install's sidebar starts short and grows with the missions (Missions.tsx).
   const parts = useSidebarParts()
+  // The missions set the Tucano up and walk through it: the owner's.
+  const missions = owner && !!settings.onboarding?.done && !settings.onboarding.checklistHidden
+  const missionsFold = useFold('missions')
+  // The usage ring opens Uso e limites: the chart icon only stands in where a harness reports no ring.
+  const hasRing = useStore((s) => windowsOf(s.settings.quota).length > 0)
   const fresh = (p: SidebarPart): (() => void) | undefined => (parts.fresh(p) ? () => parts.seen(p) : undefined)
   const pending = useStore((s) => (teamMode(s) ? inboxCount(s) : pendingApprovals(s).length))
   const suggestions = useStore((s) => pendingMemories(s).length)
@@ -166,79 +333,31 @@ export function Sidebar(): ReactNode {
   const agentOf = (id: string): Agent | undefined => agents.find((a) => a.id === id)
   const channels = conversations.filter((c) => c.kind === 'channel')
   const dms = conversations.filter((c) => c.kind === 'dm' && agentOf(c.name)?.kind !== 'tuca')
+  // A conversation's settings: beside it, so it opens first.
+  const openChat = (id: string): void => (navigate({ kind: 'conversation', id }), openPanel({ kind: 'chat', id }))
+  const dmOf = (agentId: string): (typeof dms)[number] | undefined => dms.find((c) => c.name === agentId)
   const [menu, setMenu] = useState<MenuState>(null)
   const closeMenu = useCallback(() => setMenu(null), [])
   const open = (e: React.MouseEvent, items: MenuItem[]): void => {
     e.preventDefault()
     setMenu({ x: e.clientX, y: e.clientY, items })
   }
-  // The order and groups are the person's: the core only keeps them.
-  const layout = settings.channelLayout
-  const arranged = arrange(channels, layout)
-  // Folded, a section or group still says an agent waits on me in it: values, so only a change redraws.
+  // Folded, a section still says an agent waits on me in it: values, so only a change redraws.
   const channelsWaiting = useStore((s) => anyWaiting(s, channels.map((c) => c.id)))
-  const waitingGroups = useStore((s) => arranged.groups.filter((g) => anyWaiting(s, g.channels.map((c) => c.id))).map((g) => g.id).join(' ')).split(' ')
   const dmsWaiting = useStore((s) => anyWaiting(s, dms.map((c) => c.id)))
-  const whole: ChannelLayout = { loose: arranged.loose.map((c) => c.id), groups: arranged.groups.map((g) => ({ ...g, channels: g.channels.map((c) => c.id) })) }
-  const saveLayout = (next: ChannelLayout): void => updateSettings({ channelLayout: next })
-  const [naming, setNaming] = useState<string | null>(null)
-  const newGroup = (channelId: string): void => {
-    const id = crypto.randomUUID()
-    saveLayout(moveChannel(channels, addGroup(layout, { id, name: L('Novo grupo', 'New group') }), channelId, { group: id }))
-    setNaming(id)
-  }
-  const dragged = useRef<string | null>(null)
-  const accept = (e: React.DragEvent): void => {
-    if (dragged.current) e.preventDefault()
-  }
-  const dropOn = (to: { group?: string; before?: string }) => ({
-    onDragEnter: accept,
-    onDragOver: accept,
-    onDrop: (e: React.DragEvent): void => {
-      const id = dragged.current
-      if (!id) return
-      e.preventDefault()
-      e.stopPropagation()
-      dragged.current = null
-      saveLayout(moveChannel(channels, layout, id, to))
-    }
-  })
-  const channelRow = (c: (typeof channels)[number], group?: string): ReactNode => (
-    <div
-      key={c.id}
-      draggable
-      onDragStart={(e) => {
-        dragged.current = c.id
-        e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData('text/plain', c.name)
-      }}
-      onDragEnd={() => (dragged.current = null)}
-      onContextMenu={(e) => open(e, channelMenu(c))}
-      {...dropOn({ group, before: c.id })}
-    >
-      <ChannelItem id={c.id} name={c.name} unread={c.unread} />
-    </div>
-  )
   // The wiki's curator reads every conversation; one can be kept out (a personal DM, say).
   const wikiItem = (id: string, on: boolean): MenuItem => ({
     label: on ? L('Não guardar na wiki', "Don't keep in the wiki") : L('Voltar a guardar na wiki', 'Keep in the wiki again'),
     icon: 'layers',
     onClick: () => void call('setWikiCapture', { conversationId: id, on: !on })
   })
-  const channelMenu = (c: (typeof channels)[number]): MenuItem[] => [
-    ...(canEditChannel({ people, you }, c) ? [{ label: L('Adicionar ou remover agentes…', 'Add or remove agents…'), icon: 'users' as const, onClick: () => openDialog({ kind: 'members', id: c.id }) }] : []),
-    { label: L('Configurações do canal…', 'Channel settings…'), icon: 'gear', onClick: () => openDialog({ kind: 'settings', id: c.id }) },
+  const channelMenu = (c: (typeof channels)[number], arranging: MenuItem[]): MenuItem[] => [
+    ...(canEditChannel({ people, you }, c) ? [{ label: L('Adicionar ou remover agentes…', 'Add or remove agents…'), icon: 'users' as const, onClick: () => openChat(c.id) }] : []),
+    { label: L('Configurações do canal…', 'Channel settings…'), icon: 'gear', onClick: () => openChat(c.id) },
     ...(c.unread ? [{ label: L('Marcar como lido', 'Mark as read'), icon: 'check' as const, onClick: () => markRead(c.id) }] : []),
     ...(canEditChannel({ people, you }, c) ? [wikiItem(c.id, c.wikiCapture !== false)] : []),
-    ...channelMenuRest(c)
-  ]
-  const channelMenuRest = (c: (typeof channels)[number]): MenuItem[] => [
     'separator',
-    { label: L('Mover para cima', 'Move up'), onClick: () => saveLayout(nudgeChannel(channels, layout, c.id, -1)) },
-    { label: L('Mover para baixo', 'Move down'), onClick: () => saveLayout(nudgeChannel(channels, layout, c.id, 1)) },
-    ...arranged.groups.filter((g) => !g.channels.includes(c)).map((g): MenuItem => ({ label: L(`Mover para ${g.name}`, `Move to ${g.name}`), onClick: () => saveLayout(moveChannel(channels, layout, c.id, { group: g.id })) })),
-    ...(arranged.groups.some((g) => g.channels.includes(c)) ? [{ label: L('Tirar do grupo', 'Take out of the group'), onClick: () => saveLayout(moveChannel(channels, layout, c.id, {})) }] : []),
-    { label: L('Novo grupo com este canal', 'New group with this channel'), icon: 'plus', onClick: () => newGroup(c.id) },
+    ...arranging,
     ...(admin ? channelDelete(c) : [])
   ]
   const channelDelete = (c: (typeof channels)[number]): MenuItem[] => [
@@ -258,11 +377,13 @@ export function Sidebar(): ReactNode {
         })
     }
   ]
-  const dmMenu = (id: string, agentId: string, agentName: string): MenuItem[] => [
-    { label: L(`Ver ${agentName}`, `See ${agentName}`), icon: 'eye', onClick: () => navigate({ kind: 'agent', id: agentId }) },
+  // What a DM adds to its agent's menu: read, its settings, the wiki, and deleting the conversation.
+  const dmItems = (id: string, agentName: string): MenuItem[] => [
     { label: L('Marcar como lido', 'Mark as read'), icon: 'check', onClick: () => markRead(id) },
-    { label: L('Configurações da conversa…', 'Conversation settings…'), icon: 'gear', onClick: () => openDialog({ kind: 'settings', id }) },
-    wikiItem(id, conversations.find((x) => x.id === id)?.wikiCapture !== false),
+    { label: L('Configurações da conversa…', 'Conversation settings…'), icon: 'gear', onClick: () => openChat(id) },
+    wikiItem(id, conversations.find((x) => x.id === id)?.wikiCapture !== false)
+  ]
+  const dmDelete = (id: string, agentName: string): MenuItem[] => [
     'separator',
     {
       label: L('Apagar a conversa…', 'Delete the conversation…'),
@@ -279,12 +400,15 @@ export function Sidebar(): ReactNode {
         })
     }
   ]
-  const agentMenu = (agentId: string, agentName: string): MenuItem[] => [
-    { label: L('Mandar mensagem', 'Send a message'), icon: 'send', onClick: () => void openDm(agentId) },
-    ...(admin ? agentAdminMenu(agentId, agentName) : [{ label: L(`Ver ${agentName}`, `See ${agentName}`), icon: 'eye' as const, onClick: () => navigate({ kind: 'agent', id: agentId }) }])
+  const agentMenu = (agentId: string, agentName: string, arranging: MenuItem[], dmId?: string): MenuItem[] => [
+    { label: L('Configurações do agente', 'Agent settings'), icon: 'gear', onClick: () => void openAgent(agentId) },
+    ...(dmId ? dmItems(dmId, agentName) : []),
+    'separator',
+    ...arranging,
+    ...(dmId ? dmDelete(dmId, agentName) : []),
+    ...(admin ? agentAdminMenu(agentId, agentName) : [])
   ]
   const agentAdminMenu = (agentId: string, agentName: string): MenuItem[] => [
-    { label: L('Editar', 'Edit'), icon: 'edit', onClick: () => navigate({ kind: 'agent', id: agentId }) },
     'separator',
     {
       label: L('Arquivar…', 'Archive…'),
@@ -361,66 +485,24 @@ export function Sidebar(): ReactNode {
             ) : undefined
           }
         >
-          {arranged.loose.map((c) => channelRow(c))}
-          {/* Dropped here, a channel goes last among those in no group. */}
-          <div className="channel-drop" {...dropOn({})} />
-          {arranged.groups.map((g) => (
-            <GroupFold
-              key={g.id}
-              id={g.id}
-              label={g.name}
-              unread={g.channels.reduce((n, c) => n + (c.unread ?? 0), 0)}
-              waiting={waitingGroups.includes(g.id)}
-              head={{
-                ...dropOn({ group: g.id }),
-                onContextMenu: (e) =>
-                  open(e, [
-                    { label: L('Renomear', 'Rename'), icon: 'edit', onClick: () => setNaming(g.id) },
-                    { label: L('Desfazer o grupo', 'Ungroup'), icon: 'trash', onClick: () => saveLayout(removeGroup(whole, g.id)) }
-                  ])
-              }}
-              naming={
-                naming === g.id && (
-                  <input
-                    className="channel-group__name"
-                    autoFocus
-                    defaultValue={g.name}
-                    aria-label={L('Nome do grupo', 'Group name')}
-                    onFocus={(e) => e.target.select()}
-                    onBlur={(e) => {
-                      saveLayout(renameGroup(whole, g.id, e.target.value.trim() || g.name))
-                      setNaming(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') e.currentTarget.value = g.name
-                      if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
-                    }}
-                  />
-                )
-              }
-            >
-              {g.channels.map((c) => channelRow(c, g.id))}
-            </GroupFold>
-          ))}
+          <GroupedList
+            items={channels}
+            layout={settings.channelLayout}
+            save={(l) => updateSettings({ channelLayout: l })}
+            noun={L('este canal', 'this channel')}
+            open={open}
+            waitingIn={(c) => c.id}
+            menuOf={channelMenu}
+            dragLabel={(c) => c.name}
+            render={(c) => <ChannelItem id={c.id} name={c.name} unread={c.unread} />}
+          />
         </Section>
-
-        {dms.length > 0 && (
-        <Section id="dms" label={team ? L('Suas mensagens diretas', 'Your direct messages') : L('Mensagens diretas', 'Direct messages')} unread={unreadIn(dms)} waiting={dmsWaiting}>
-          {dms.map((c) => {
-            const agent = agentOf(c.name)
-            if (!agent) return null
-            return (
-              <div key={c.id} onContextMenu={(e) => open(e, dmMenu(c.id, agent.id, agent.name))}>
-                <DmItem id={c.id} agent={agent} unread={c.unread} owner={team && agent.owner !== you ? personById({ people }, agent.owner)?.name : undefined} />
-              </div>
-            )
-          })}
-        </Section>
-        )}
 
         <Section
           id="agents"
           label={L('Agentes', 'Agents')}
+          unread={unreadIn(dms)}
+          waiting={dmsWaiting}
           action={
             admin ? (
               <button className="icon-btn icon-btn--sm" title={L('Novo agente: abre o Tuca', 'New agent: opens Tuca')} onClick={openTuca}>
@@ -429,13 +511,19 @@ export function Sidebar(): ReactNode {
             ) : undefined
           }
         >
-          {agents
-            .filter(isTeam)
-            .map((a) => (
-              <div key={a.id} onContextMenu={(e) => open(e, agentMenu(a.id, a.name))}>
-                <AgentItem id={a.id} owner={team && a.owner !== you ? personById({ people }, a.owner)?.name : undefined} />
-              </div>
-            ))}
+          {/* One row per agent: a click opens its DM (where its unread, its working dot and what waits on
+              me show), the gear its settings beside it. */}
+          <GroupedList
+            items={agents.filter(isTeam).map((a) => ({ id: a.id, name: a.name, dm: dmOf(a.id), unread: dmOf(a.id)?.unread }))}
+            layout={settings.agentLayout}
+            save={(l) => updateSettings({ agentLayout: l })}
+            noun={L('este agente', 'this agent')}
+            open={open}
+            waitingIn={(a) => a.dm?.id}
+            menuOf={(a, arranging) => agentMenu(a.id, a.name, arranging, a.dm?.id)}
+            dragLabel={(a) => a.name}
+            render={(a) => <AgentItem id={a.id} dmId={a.dm?.id} unread={a.unread} owner={(() => { const ag = agentOf(a.id); return team && ag && ag.owner !== you ? personById({ people }, ag.owner)?.name : undefined })()} />}
+          />
           {agents.some((a) => a.archived) && (
             <button className="nav-item nav-item--quiet" onClick={() => openDialog({ kind: 'archived' })}>
               <Icon name="layers" />
@@ -446,15 +534,20 @@ export function Sidebar(): ReactNode {
         </Section>
       </nav>
 
-      {/* The missions set the Tucano up and walk through it: the owner's. */}
-      {owner && settings.onboarding?.done && !settings.onboarding.checklistHidden && <MissionsCard />}
       <ContextMenu menu={menu} onClose={closeMenu} />
+      {/* One floor: the subscription's ring, the missions (the owner's, folding into a chip), and the
+          screens you visit now and then as icons. The missions card opens above it. */}
       <div className="sidebar__foot">
         <UpdateNote />
-        {admin && <UsageDock />}
-        {admin && parts.shows('usage') && <NavItem view={{ kind: 'usage' }} icon="chart" label={L('Uso e limites', 'Usage and limits')} fresh={fresh('usage')} />}
-        {parts.shows('connectors') && <NavItem view={{ kind: 'connectors' }} icon="plug" label={L('Conectores', 'Connectors')} fresh={fresh('connectors')} />}
-        <NavItem view={{ kind: 'settings' }} icon="gear" label={L('Configurações', 'Settings')} />
+        {missions && missionsFold.open && <MissionsCard />}
+        <div className="sidebar__dock">
+          {admin && <UsageDock />}
+          {missions && <MissionsChip open={missionsFold.open} onToggle={missionsFold.toggle} />}
+          <span className="sidebar__dock-gap" />
+          {admin && parts.shows('usage') && !hasRing && <FootIcon view={{ kind: 'usage' }} icon="chart" label={L('Uso e limites', 'Usage and limits')} fresh={fresh('usage')} />}
+          {parts.shows('connectors') && <FootIcon view={{ kind: 'connectors' }} icon="plug" label={L('Conectores', 'Connectors')} fresh={fresh('connectors')} />}
+          <FootIcon view={{ kind: 'settings' }} icon="gear" label={L('Configurações', 'Settings')} />
+        </div>
       </div>
     </aside>
   )
@@ -487,42 +580,34 @@ function RoleMeta({ role, owner }: { role: string; owner?: string }): ReactNode 
   return <span className="nav-item__meta nav-item__role" title={owner ? L(`${role ? `${role} · ` : ''}de ${owner}`, `${role ? `${role} · ` : ''}${owner}'s`) : role}>{role}</span>
 }
 
-const DmItem = memo(function DmItem({ id, agent, unread, owner }: { id: string; agent: Agent; unread?: number; owner?: string }): ReactNode {
-  const name = agent.name
-  const active = useStore((s) => s.view?.kind === 'conversation' && s.view.id === id)
-  const working = useStore((s) => isWorking(s, id))
-  const waiting = useWaitingTitle(id)
-  return (
-    <button className={`nav-item ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`} onClick={() => navigate({ kind: 'conversation', id })}>
-      <AgentAvatar agent={agent} size={18} busy={working} />
-      <span className="nav-item__label">{name}</span>
-      <RoleMeta role={agent.role} owner={owner} />
-      {waiting ? <WaitingMark title={waiting} /> : <LiveDot working={working} />}
-      {unread ? <span key={unread} className="badge badge--soft">{unread}</span> : null}
-    </button>
-  )
-})
-
 // `owner`: with a team, whose agent it is (its approvals go to them), when it isn't mine.
-const AgentItem = memo(function AgentItem({ id, owner }: { id: string; owner?: string }): ReactNode {
+const AgentItem = memo(function AgentItem({ id, dmId, unread, owner }: { id: string; dmId?: string; unread?: number; owner?: string }): ReactNode {
   const agent = useStore((s) => agentById(s, id))
-  const active = useStore((s) => s.view?.kind === 'agent' && s.view.id === id)
-  // The agent list is configuration: working shows on the thread (DM, channel),
-  // never here — an agent busy in a channel would glow next to an idle DM.
+  const active = useStore((s) => s.view?.kind === 'agent' ? s.view.id === id : !!dmId && s.view?.kind === 'conversation' && s.view.id === dmId)
+  const settingsOpen = useStore((s) => s.panel?.kind === 'agent' && s.panel.id === id)
+  const working = useStore((s) => !!dmId && isWorking(s, dmId))
+  const waiting = useWaitingTitle(dmId ?? '')
   if (!agent) return null
   // No monthly limit, no dot: undefined share, so nothing here can read as spent.
   const pct = usedShare(agent.used, agent.limit)
   return (
-    <button className={`nav-item ${active ? 'is-active' : ''}`} onClick={() => navigate({ kind: 'agent', id })}>
-      <AgentAvatar agent={agent} size={18} />
-      <span className="nav-item__label">{agent.name}</span>
-      <RoleMeta role={agent.role} owner={owner} />
+    <div className={`nav-item nav-item--agent ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`}>
+      <button className="nav-item__hit" onClick={() => void (dmId ? navigate({ kind: 'conversation', id: dmId }) : openDm(id))}>
+        <AgentAvatar agent={agent} size={18} busy={working} />
+        <span className="nav-item__label">{agent.name}</span>
+        <RoleMeta role={agent.role} owner={owner} />
+      </button>
       {agent.computer && agent.computerKind === 'mac' && (
         <span className="nav-item__mac" title={L('Roda no seu computador', 'Runs on your computer')}>
           <Icon name="laptop" size={13} />
         </span>
       )}
       {pct !== undefined && pct >= 0.8 && <span className={`dot ${pct >= 1 ? 'dot--danger' : 'dot--warn'}`} title={pct >= 1 ? L('Bateu o limite do mês', 'Hit the monthly limit') : L('Já usou mais de 80% do limite', 'Over 80% of the limit used')} />}
-    </button>
+      {dmId && (waiting ? <WaitingMark title={waiting} /> : <LiveDot working={working} />)}
+      {unread ? <span key={unread} className="badge badge--soft">{unread}</span> : null}
+      <button className={`nav-item__gear ${settingsOpen ? 'is-on' : ''}`} title={L(`Configurações de ${agent.name}`, `${agent.name}'s settings`)} aria-label={L(`Configurações de ${agent.name}`, `${agent.name}'s settings`)} onClick={() => void openAgent(id)}>
+        <Icon name="gear" size={13} />
+      </button>
+    </div>
   )
 })

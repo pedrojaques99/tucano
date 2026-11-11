@@ -30,7 +30,7 @@ import { RECOMMENDED_SKILL_BODY_LENGTH, skillLengthNote } from '../../../shared/
 import { Card, Field, Sheet } from './Pages'
 import { AdminOnly } from './People'
 import { confirmDialog } from './Dialogs'
-import { ago, AgentAvatar, Icon, time } from './ui'
+import { ago, AgentAvatar, Icon, time, Toggle } from './ui'
 import { Modal } from './Modal'
 
 type Place = { kind: 'list' } | { kind: 'skill'; id: string } | { kind: 'review' }
@@ -58,7 +58,6 @@ function Skills({ admin }: { admin: boolean }): ReactNode {
   const [place, setPlace] = useState<Place>({ kind: 'list' })
   const [draft, setDraft] = useState<SkillInput | null>(null)
   const [adding, setAdding] = useState(false)
-  const [showArchived, setShowArchived] = useState(false)
   const [stats, setStats] = useState<SkillReport[]>([])
   useEffect(() => {
     if (admin) void loadReport().then((r) => setStats(r.skills), () => {})
@@ -122,50 +121,24 @@ function Skills({ admin }: { admin: boolean }): ReactNode {
         </div>
       )}
 
-      {active.length === 0 ? (
+      {active.length + (admin ? archived.length : 0) === 0 ? (
         <div className="read-empty">
           <p>{L('Nenhuma skill em uso ainda.', 'No skills in use yet.')}</p>
           <p>{L('Escreva uma, traga uma das que você já usa no terminal, ou deixe os agentes proporem: quando resolverem algo em vários passos, eles sugerem guardar o caminho.', 'Write one, bring one you already use in the terminal, or let the agents propose: when they solve something in several steps, they suggest keeping the path.')}</p>
         </div>
       ) : (
         <section className="read-group">
-          <h2>{L('Em uso', 'In use')}</h2>
-          <SkillTree skills={active} stats={stats} onOpen={(id) => setPlace({ kind: 'skill', id })} />
-        </section>
-      )}
-
-      {admin && archived.length > 0 && (
-        <section className="read-group">
           <h2>
-            <button onClick={() => setShowArchived(!showArchived)}>
-              {L('Arquivadas', 'Archived')} ({archived.length}) {showArchived ? '▾' : '▸'}
-            </button>
+            {L('Em uso', 'In use')}
+            {admin && archived.length > 0 && (
+              <span className="skill-tree__tally">
+                {' '}
+                · {active.length} {L(active.length === 1 ? 'ativa' : 'ativas', 'on')}, {archived.length} {L(archived.length === 1 ? 'desativada' : 'desativadas', 'off')}
+              </span>
+            )}
           </h2>
-          {showArchived &&
-            archived.map((k) => (
-              <div key={k.id} className="skill-line skill-line--off">
-                <span className="skill-line__body">
-                  <strong>{k.name}</strong>
-                  <span className="skill-line__desc">{k.description}</span>
-                </span>
-                <button className="text-btn" onClick={() => archiveSkill(k.id, false)}>
-                  {L('Reativar', 'Reactivate')}
-                </button>
-                <button
-                  className="text-btn"
-                  onClick={() =>
-                    void confirmDialog({
-                      title: L(`Apagar a skill “${k.name}”?`, `Delete the skill “${k.name}”?`),
-                      body: L('Ela some da lista e nenhum agente volta a usar. Não dá pra desfazer.', "It leaves the list and no agent uses it again. This can't be undone."),
-                      confirm: L(`Apagar “${k.name}”`, `Delete “${k.name}”`),
-                      danger: true
-                    }).then((ok) => ok && removeSkill(k.id))
-                  }
-                >
-                  {L('Apagar', 'Delete')}
-                </button>
-              </div>
-            ))}
+          {/* Admins see the ones turned off too, dimmed in their folder, to turn them back on or delete them. */}
+          <SkillTree skills={admin ? [...active, ...archived] : active} stats={stats} admin={admin} onOpen={(id) => setPlace({ kind: 'skill', id })} />
         </section>
       )}
 
@@ -214,8 +187,28 @@ function FileMark(): ReactNode {
   )
 }
 
-// The skills in use as files in folders; the one picked shows its recipe beside the tree.
-function SkillTree({ skills, stats, onOpen }: { skills: Skill[]; stats: SkillReport[]; onOpen: (id: string) => void }): ReactNode {
+// Turning skills off and on, a few or a whole folder: one at a time, so a name already taken fails alone.
+const turn = (ks: Skill[], on: boolean): void => {
+  for (const k of ks) if ((k.state === 'active') !== on) archiveSkill(k.id, !on)
+}
+
+// Deleting one: it leaves Tucano. A linked one's file stays where it is (Claude Code, a plugin, Codex).
+const askDelete = (k: Skill): Promise<boolean> =>
+  confirmDialog({
+    title: L(`Apagar a skill “${k.name}”?`, `Delete the skill “${k.name}”?`),
+    body: k.source
+      ? L(`Ela sai do Tucano e nenhum agente volta a usar. O arquivo continua ${from(k)}: pra trazer de volta, use “Buscar skills existentes”.`, `It leaves Tucano and no agent uses it again. The file stays ${from(k)}: to bring it back, use “Find existing skills”.`)
+      : L('Ela sai do Tucano e nenhum agente volta a usar. Não dá pra desfazer.', "It leaves Tucano and no agent uses it again. This can't be undone."),
+    confirm: L(`Apagar “${k.name}”`, `Delete “${k.name}”`),
+    danger: true
+  }).then((ok) => {
+    if (ok) removeSkill(k.id)
+    return ok
+  })
+
+// The skills as files in folders; the one picked shows its recipe beside the tree. An admin turns each one,
+// or a whole folder, on and off here, and deletes one from its preview; the ones off show dimmed.
+function SkillTree({ skills, stats, admin, onOpen }: { skills: Skill[]; stats: SkillReport[]; admin: boolean; onOpen: (id: string) => void }): ReactNode {
   const groups = new Map<string, { label: string; skills: Skill[] }>()
   for (const k of skills) {
     const f = folderOf(k.source)
@@ -231,25 +224,34 @@ function SkillTree({ skills, stats, onOpen }: { skills: Skill[]; stats: SkillRep
   const toggle = (id: string): void => setClosed((c) => { const n = new Set(c); n.has(id) ? n.delete(id) : n.add(id); return n })
   return (
     <div className="skill-tree">
-      <ul className="skill-tree__list" role="tree" aria-label={L('Skills em uso', 'Skills in use')}>
+      <ul className="skill-tree__list" role="tree" aria-label="Skills">
         {folders.map(([id, g]) => {
           const open = !closed.has(id)
+          const on = g.skills.filter((k) => k.state === 'active').length
           return (
             <li key={id} role="treeitem" aria-expanded={open} className="skill-tree__node">
-              <button className="skill-tree__row skill-tree__row--folder" onClick={() => toggle(id)}>
-                <Icon name="chevron" size={12} />
-                <FolderMark open={open} />
-                <span className="skill-tree__name">{g.label}</span>
-                <span className="skill-tree__count">{g.skills.length}</span>
-              </button>
+              <div className={`skill-tree__line${on === 0 ? ' is-off' : ''}`}>
+                <button className="skill-tree__row skill-tree__row--folder" onClick={() => toggle(id)}>
+                  <Icon name="chevron" size={12} />
+                  <FolderMark open={open} />
+                  <span className="skill-tree__name">{g.label}</span>
+                  <span className="skill-tree__count">{on === g.skills.length ? g.skills.length : `${on}/${g.skills.length}`}</span>
+                </button>
+                {admin && (
+                  // On while any is on: off turns the whole folder off; on turns all of it back on.
+                  <Toggle on={on > 0} onChange={(v) => turn(g.skills, v)} label={on > 0 ? L(`Desativar todas de ${g.label}`, `Turn all of ${g.label} off`) : L(`Ativar todas de ${g.label}`, `Turn all of ${g.label} on`)} />
+                )}
+              </div>
               {open && (
                 <ul role="group" className="skill-tree__files">
                   {g.skills.map((k) => (
-                    <li key={k.id} role="treeitem" aria-selected={picked === k.id}>
-                      <button className={`skill-tree__row skill-tree__row--file ${picked === k.id ? 'is-on' : ''}`} onClick={() => setPicked(k.id)} onDoubleClick={() => onOpen(k.id)}>
+                    <li key={k.id} role="treeitem" aria-selected={picked === k.id} className="skill-tree__leaf">
+                      <button className={`skill-tree__row skill-tree__row--file${picked === k.id ? ' is-on' : ''}${k.state === 'archived' ? ' is-off' : ''}`} onClick={() => setPicked(k.id)} onDoubleClick={() => k.state === 'active' && onOpen(k.id)}>
                         <FileMark />
                         <span className="skill-tree__name">{k.name}</span>
                       </button>
+                      {/* Each skill on or off right on its row, like its folder. */}
+                      {admin && <Toggle on={k.state === 'active'} onChange={(v) => turn([k], v)} label={k.state === 'active' ? L(`Desativar ${k.name}`, `Turn ${k.name} off`) : L(`Ativar ${k.name}`, `Turn ${k.name} on`)} />}
                     </li>
                   ))}
                 </ul>
@@ -265,12 +267,27 @@ function SkillTree({ skills, stats, onOpen }: { skills: Skill[]; stats: SkillRep
               <div>
                 <h3>{shown.name}</h3>
                 <span className="skill-line__meta">
-                  <Who ids={shown.agents} /> · {result(stats.find((x) => x.skillId === shown.id))} · {from(shown)}
+                  {shown.state === 'archived' ? L('desativada: nenhum agente usa', 'off: no agent uses it') : <Who ids={shown.agents} />} · {result(stats.find((x) => x.skillId === shown.id))} · {from(shown)}
                 </span>
               </div>
-              <button className="btn btn--sm" onClick={() => onOpen(shown.id)}>
-                {L('Abrir', 'Open')}
-              </button>
+              <div className="skill-tree__actions">
+                {admin && (
+                  <span className="skill-tree__switch">
+                    {shown.state === 'active' ? L('Ativa', 'On') : L('Desativada', 'Off')}
+                    <Toggle on={shown.state === 'active'} onChange={(v) => turn([shown], v)} label={shown.state === 'active' ? L('Desativar', 'Turn off') : L('Ativar', 'Turn on')} />
+                  </span>
+                )}
+                {shown.state === 'active' && (
+                  <button className="btn btn--sm" onClick={() => onOpen(shown.id)}>
+                    {L('Abrir', 'Open')}
+                  </button>
+                )}
+                {admin && (
+                  <button className="btn btn--sm btn--ghost skill-tree__delete" onClick={() => void askDelete(shown).then((ok) => ok && setPicked(undefined))}>
+                    {L('Apagar', 'Delete')}
+                  </button>
+                )}
+              </div>
             </div>
             <p className="skill-tree__desc">{shown.description}</p>
             {shown.body.trim() ? (
@@ -308,7 +325,10 @@ function SkillPage({ skill: k, stat, onBack, onEdit }: { skill: Skill; stat?: Sk
               {L('Editar', 'Edit')}
             </button>
             <button className="text-btn" onClick={() => (archiveSkill(k.id, true), onBack())}>
-              {L('Arquivar', 'Archive')}
+              {L('Desativar', 'Turn off')}
+            </button>
+            <button className="text-btn" onClick={() => void askDelete(k).then((ok) => ok && onBack())}>
+              {L('Apagar', 'Delete')}
             </button>
           </>
         )

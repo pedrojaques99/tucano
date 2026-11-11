@@ -204,6 +204,16 @@ export const CATALOG: CatalogEntry[] = [
       )
   }),
 
+  // Figma's remote server signs in only the apps on Figma's list: Tucano reaches it through Claude Code,
+  // which is on it, with the bridge that ships with Tucano (core/figma-bridge.ts). Every tool, writes too.
+  e('figma', 'Figma', '', 'design', 'Ler, criar e editar arquivos de design, FigJam e Slides', 'Read, create and edit design, FigJam and Slides files', 'none', {
+    local: { command: 'tucano', args: ['figma-bridge'] },
+    warning: () =>
+      L(
+        'Pelo Claude Code: cada chamada passa por ele, que já entra no Figma por você (o Figma ainda não aceita o Tucano direto). Precisa do Claude Code instalado e conectado ao Figma (claude.ai › Configurações › Conectores). Cada chamada usa um pouco do seu plano do Claude e leva de 10 a 40 segundos.',
+        "Through Claude Code: each call goes through it, and it signs in to Figma for you (Figma doesn't take Tucano directly yet). It needs Claude Code installed and connected to Figma (claude.ai › Settings › Connectors). Each call uses a little of your Claude plan and takes 10 to 40 seconds."
+      )
+  }),
   e('canva', 'Canva', 'https://mcp.canva.com/mcp', 'design', 'Designs, modelos e exportações', 'Designs, templates and exports'),
   e('webflow', 'Webflow', 'https://mcp.webflow.com/mcp', 'design', 'Sites, páginas e CMS', 'Sites, pages and CMS'),
   e('wix', 'Wix', 'https://mcp.wix.com/mcp', 'design', 'Sites e lojas', 'Sites and stores'),
@@ -250,6 +260,29 @@ export function entryOf(c: { kind: 'remote' | 'stdio'; url?: string; command?: s
       .join('[^?#]+?')
     return new RegExp(`^${pattern}/?$`, 'i').test((c.url ?? '').trim())
   })
+}
+
+// The brand of a connector that didn't come from the store (one brought from Claude Code or OpenCode,
+// one added by hand), by its address, command or name: a key of the logos (connector-logos.ts) or of
+// the brands drawn by their initial. One place, for the store's cards and the steps in the chat.
+const BRANDS: [RegExp, string][] = [
+  [/figma/i, 'figma'],
+  [/supabase/i, 'supabase'],
+  [/whatsapp/i, 'whatsapp'],
+  [/google[-_ ]?workspace|googleapis/i, 'google'],
+  [/premiere/i, 'premiere'],
+  [/adobe/i, 'adobe'],
+  [/visantlabs|\bvisant\b/i, 'visant'],
+  [/heygen|hyperframes/i, 'heygen']
+]
+export function logoKeyOf(c: { name: string; url?: string; command?: string; args?: string[] }): string | undefined {
+  const entry = entryOf({ kind: c.url ? 'remote' : 'stdio', url: c.url, command: c.command, args: c.args })
+  if (entry) return entry.id
+  const said = [c.url ?? '', c.command ?? '', ...(c.args ?? []), c.name].join(' ')
+  const brand = BRANDS.find(([re]) => re.test(said))?.[1]
+  if (brand) return brand
+  const named = CATALOG.find((e) => e.id === c.name.trim().toLowerCase())
+  return named?.id
 }
 
 // The same server, however its address was typed: case, a trailing slash.

@@ -81,8 +81,8 @@ export function HomePhoneCard(): ReactNode {
     <Card
       title={L('Seu iPhone', 'Your iPhone')}
       lead={L(
-        'Use o Tucano no iPhone com tudo daqui: suas conversas, aprovações e as perguntas dos agentes. Funciona no Wi-Fi de casa, com o computador ligado.',
-        'Use Tucano on your iPhone with everything here: your conversations, approvals and the questions agents ask you. It works on your home Wi-Fi, with this computer on.'
+        'Conversas, aprovações e perguntas dos agentes no iPhone, no Wi-Fi de casa, com este computador ligado.',
+        'Conversations, approvals and agents’ questions on your iPhone, on your home Wi-Fi, with this computer on.'
       )}
       action={
         !code ? (

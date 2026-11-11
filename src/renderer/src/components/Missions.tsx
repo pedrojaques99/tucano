@@ -114,6 +114,29 @@ export function MissionsCard(): ReactNode {
   )
 }
 
+// The missions folded into the sidebar's foot: a ring with how many are done. A click opens or closes
+// the card above it (MissionsCard), and the fold is kept like any other (Fold.tsx).
+export function MissionsChip({ open, onToggle }: { open: boolean; onToggle: () => void }): ReactNode {
+  const { done } = useMissions()
+  const all = MISSIONS()
+  const count = all.filter((m) => done.has(m.id)).length
+  const r = 7
+  const c = 2 * Math.PI * r
+  return (
+    <button className={`missions-chip ${open ? 'is-open' : ''}`} aria-expanded={open} onClick={onToggle} title={open ? L('Recolher as missões', 'Fold the missions') : L('Ver as missões', 'Show the missions')}>
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+        <circle cx="9" cy="9" r={r} className="missions-chip__track" />
+        <circle cx="9" cy="9" r={r} className="missions-chip__fill" strokeDasharray={c} strokeDashoffset={c * (1 - count / all.length)} />
+      </svg>
+      <span className="missions-chip__label">{L('Missões', 'Missions')}</span>
+      <span className="missions-chip__count">
+        {count}/{all.length}
+      </span>
+      <Icon name="chevron" size={11} />
+    </button>
+  )
+}
+
 export function MissionsPage(): ReactNode {
   const { done } = useMissions()
   const name = useStore(agentName)

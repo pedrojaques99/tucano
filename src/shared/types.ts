@@ -162,6 +162,8 @@ export interface Step {
   error?: string // why it failed, in the tool's own words
   input?: string // what the call asked, the argument that says it (the SQL, the path), as it was sent
   output?: string // what came back, in a few words ("120 rows")
+  mark?: { engine?: EngineId; connector?: string } // whose official logo goes before the detail: a harness, or a catalog connector (by its catalog id)
+  progress?: string // what a long call says it's doing now ("Rodando use_figma no Figma"), only while it runs
   status: StepStatus
   ms?: number
 }
@@ -472,6 +474,8 @@ export interface Settings {
   voice?: VoiceSettings
   channelLayout?: ChannelLayout // the person's order and groups in the sidebar
   orgLayout?: Record<string, { x: number; y: number }> // the organogram's cards placed by hand (an agent's id, or 'me'); unset: laid out on its own
+  agentLayout?: ChannelLayout // the same, for the agents
+  dmLayout?: ChannelLayout // the same, for the direct messages
   browserJev?: boolean // Jev finds what agents click in their browsers (each click sends the page to TypeSafe)
   memoryModel: string // summarizes conversations and extracts memories
   memoryLearning: 'approve' | 'auto' | 'off' // what extracted memories about me become

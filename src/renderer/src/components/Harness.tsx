@@ -3,7 +3,7 @@
 // providers they have logins for. Here they pick which ones the agents use,
 // test them, and pick models from what each harness offers.
 import { L } from '../../../shared/lang'
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode, useRef } from 'react'
 import {
   ACCOUNT_ENGINES,
   addAccount,
@@ -186,6 +186,130 @@ export function ModelPicker({ value, onChange, engines, jev }: { value: string; 
         </>
       )}
       {error && other && <span className="hint">{L('Não deu pra pegar a lista', 'Couldn’t get the list')}: {error}</span>}
+    </div>
+  )
+}
+
+// ---------- one picker for harness and model ----------
+
+// Harness and model in one place: its mark and name on a button (a field, or a chip at the composer),
+// and a menu with the harnesses on the left and the chosen one's models on the right, a filter on top,
+// and "other model" typed in place. Everything opens inside the menu, so a click there never counts
+// as a click outside. The way the app picks a model, wherever it does.
+export function ModelCombo({ value, onChange, variant = 'field', disabled, title }: { value: string; onChange: (v: string) => void; variant?: 'field' | 'chip'; disabled?: boolean; title?: string }): ReactNode {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent): void => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false)
+    }
+    const esc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => (document.removeEventListener('mousedown', away), document.removeEventListener('keydown', esc))
+  }, [open])
+  const m = modelInfo(value)
+  const engine: EngineId = m?.engine ?? 'claude'
+  return (
+    <div className={`model-combo model-combo--${variant}`} ref={box}>
+      <button type="button" className="model-combo__btn" disabled={disabled} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>
+        <EngineMark engine={engine} size={variant === 'chip' ? 14 : 18} />
+        <span className="model-combo__engine">{ENGINES[engine].label}</span>
+        <span className="model-combo__model">{m?.label || m?.id || L('Escolha um modelo', 'Pick a model')}</span>
+        {!disabled && <Icon name="chevron" size={11} />}
+      </button>
+      {open && (
+        <div className={`model-combo__pop model-combo__pop--${variant}`} role="dialog" aria-label={title ?? L('Modelo', 'Model')}>
+          {title && <span className="model-combo__title">{title}</span>}
+          <ModelMenu
+            value={value}
+            onChange={(v) => {
+              onChange(v)
+              setOpen(false)
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ModelMenu({ value, onChange }: { value: string; onChange: (v: string) => void }): ReactNode {
+  const choices = useStore((s) => usableEngines(s.settings))
+  const m = value ? modelInfo(value) : undefined
+  const [engine, setEngine] = useState<EngineId | undefined>(m && choices.includes(m.engine) ? m.engine : choices[0])
+  const { options, loading, error } = useEngineModels(engine)
+  const [q, setQ] = useState('')
+  const [typing, setTyping] = useState(false)
+  const [name, setName] = useState(m && !MODELS.some((x) => x.id === value) ? m.id : '')
+  const needle = q.trim().toLowerCase()
+  const shown = options.filter((o) => !needle || `${o.label} ${o.hint ?? ''} ${o.value}`.toLowerCase().includes(needle))
+  if (!choices.length)
+    return (
+      <p className="hint hint--warn">
+        {L('Nenhum Claude Code ou Codex pronto ainda.', 'No Claude Code or Codex ready yet.')}{' '}
+        <button className="link" onClick={() => (setTab('settings', 'modelos'), navigate({ kind: 'settings' }))}>
+          {L('Configurar', 'Set up')}
+        </button>
+      </p>
+    )
+  return (
+    <div className="model-menu">
+      <label className="model-menu__filter">
+        <Icon name="search" size={13} />
+        <input autoFocus value={q} placeholder={L('Filtrar modelos', 'Filter models')} onChange={(e) => setQ(e.target.value)} />
+      </label>
+      <div className="model-menu__cols">
+        <ul className="model-menu__engines" role="listbox" aria-label={L('Provedor', 'Provider')}>
+          {choices.map((e) => (
+            <li key={e}>
+              <button type="button" role="option" aria-selected={engine === e} className={engine === e ? 'is-on' : ''} onClick={() => (setEngine(e), setTyping(false))}>
+                <EngineMark engine={e} size={16} />
+                <span>{ENGINES[e].label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <ul className="model-menu__models" role="listbox" aria-label={L('Modelo', 'Model')}>
+          {loading && <li className="model-menu__note">{L('Buscando os modelos…', 'Fetching the models…')}</li>}
+          {!loading && shown.length === 0 && <li className="model-menu__note">{needle ? L('Nenhum modelo com esse nome.', 'No model by that name.') : L('Sem lista: escreva o nome abaixo.', 'No list: type the name below.')}</li>}
+          {shown.map((o) => (
+            <li key={o.value}>
+              <button type="button" role="option" aria-selected={o.value === value} className={o.value === value ? 'is-on' : ''} onClick={() => onChange(o.value)}>
+                <span className="model-menu__name">{o.label}</span>
+                {o.hint && <span className="model-menu__hint">{o.hint}</span>}
+                {o.value === value && <Icon name="check" size={13} />}
+              </button>
+            </li>
+          ))}
+          {engine && (
+            <li>
+              {typing ? (
+                <form
+                  className="model-menu__other"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (name.trim()) onChange(customModel(engine, name.trim()))
+                  }}
+                >
+                  <input autoFocus value={name} spellCheck={false} placeholder={L('O nome exato do modelo', 'The exact model name')} onChange={(e) => setName(e.target.value)} />
+                  <button type="submit" className="btn btn--sm" disabled={!name.trim()}>
+                    {L('Usar', 'Use')}
+                  </button>
+                </form>
+              ) : (
+                <button type="button" className="model-menu__more" onClick={() => setTyping(true)}>
+                  {L('Outro modelo…', 'Other model…')}
+                </button>
+              )}
+            </li>
+          )}
+          {error && <li className="model-menu__note">{L('Não deu pra pegar a lista', 'Couldn’t get the list')}: {error}</li>}
+        </ul>
+      </div>
     </div>
   )
 }

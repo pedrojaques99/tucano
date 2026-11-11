@@ -1599,7 +1599,7 @@ function ConnectorDetails({ c, onClose }: { c: Connector; onClose: () => void })
             </div>
           )
         })}
-        <p className="hint">{L('Ferramentas novas que o servidor publicar depois entram desligadas até você revisar. Sensíveis sempre pedem aprovação.', 'New tools the server publishes later come in off until you review them. Sensitive ones always ask for approval.')}</p>
+        <p className="hint">{L('Ferramentas novas que o servidor publicar depois entram desligadas até você revisar. Sensíveis pedem aprovação, a não ser as que você marcou como "sempre permitir" e o que a autonomia do agente deixa ele fazer sozinho.', 'New tools the server publishes later come in off until you review them. Sensitive ones ask for approval, except the ones you marked as "always allow" and what the agent’s autonomy lets it do alone.')}</p>
       </div>
       {changing && own && <OwnAppSetup provider={own.provider} onClose={() => setChanging(false)} />}
     </Modal>

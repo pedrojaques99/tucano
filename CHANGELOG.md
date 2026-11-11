@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **A connector's window no longer says sensitive tools always ask.** It did, while the approval card two clicks later offers "Approve and always allow" for that same tool, and an agent's autonomy can let it run them alone. The note now says they ask for approval, except the ones marked "always allow" and what the agent's autonomy lets it do alone.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

@@ -1958,12 +1958,21 @@ function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
   }
   const earlier = [loginOf(draft.modelId, draft.accountId), loginOf(draft.fallbackModelId, draft.fallbackAccountId)]
   const change = (i: number, r: Reserve): void => set(list.map((x, j) => (j === i ? r : x)))
-  // A new one starts on a harness not in the chain yet, when there is one: the same subscription would be out too.
-  const add = (): void => {
-    const taken = new Set([draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].map((m) => (m ? modelInfo(m)?.engine : undefined)))
-    const engine = usable.find((e) => !taken.has(e)) ?? usable[0]
-    set([...list, { modelId: MODELS.find((m) => m.engine === engine)?.id ?? draft.fallbackModelId ?? draft.modelId }])
+  // What a new one starts on: a harness not in the chain yet (the same subscription would be out too), else another
+  // account of a harness already in it. None free: the button gives way to how to get one.
+  const nextFree = (): Reserve | undefined => {
+    const inChain = [draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].map((m) => (m ? modelInfo(m)?.engine : undefined))
+    const engine = usable.find((e) => !inChain.includes(e))
+    const model = engine && MODELS.find((m) => m.engine === engine)
+    if (model) return { modelId: model.id }
+    const used = [loginOf(draft.modelId, draft.accountId), loginOf(draft.fallbackModelId, draft.fallbackAccountId), ...list.map((r) => loginOf(r.modelId, r.accountId))]
+    for (const a of accounts.filter((x) => x.loggedIn)) {
+      const modelId = [draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].find((m) => m && modelInfo(m)?.engine === a.engine)
+      if (modelId && !used.includes(loginOf(modelId, a.id))) return { modelId, accountId: a.id }
+    }
+    return undefined
   }
+  const free = nextFree()
   return (
     <>
       {list.map((r, i) => {
@@ -1997,11 +2006,19 @@ function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
           </div>
         )
       })}
-      {list.length < MAX_MORE_RESERVES && (
-        <button className="btn btn--sm btn--ghost" onClick={add}>
-          <Icon name="plus" size={14} /> {L('Outra reserva, se esta também acabar', 'Another reserve, if this one runs out too')}
-        </button>
-      )}
+      {list.length < MAX_MORE_RESERVES &&
+        (free ? (
+          <button className="btn btn--sm btn--ghost" onClick={() => set([...list, free])}>
+            <Icon name="plus" size={14} /> {L('Outra reserva, se esta também acabar', 'Another reserve, if this one runs out too')}
+          </button>
+        ) : (
+          <p className="muted small">
+            {L(
+              'Pra outra reserva, falta um login livre: entre em outra conta (Configurações › Modelos › Contas) ou ligue outro programa (Configurações › Modelos).',
+              'Another reserve needs a free login: sign in to another account (Settings › Models › Accounts) or turn on another program (Settings › Models).'
+            )}
+          </p>
+        ))}
     </>
   )
 }

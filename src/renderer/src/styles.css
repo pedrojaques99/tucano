@@ -1732,6 +1732,10 @@ h3 {
 .approval__refuse .row {
   justify-content: flex-end;
 }
+/* Approve, approve for good and refuse don't fit one line on a phone: refusing must stay in reach. */
+.approval > .row {
+  flex-wrap: wrap;
+}
 
 /* composer */
 .composer-wrap {

@@ -79,6 +79,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **The sleeping toucan shows on the dark theme.** The empty Approvals page (and For you, with a team) draws a sleeping toucan whose body was a fixed near-black, so on the dark theme only its closed eyes and beak floated on the page. Its body now takes the text color and its eyes the panel color, so it reads on both themes.
+### Fixed
+
+- **A connector's window no longer says sensitive tools always ask.** It did, while the approval card two clicks later offers "Approve and always allow" for that same tool, and an agent's autonomy can let it run them alone. The note now says they ask for approval, except the ones marked "always allow" and what the agent's autonomy lets it do alone.
 
 ## [0.2.27] - 2026-11-10
 

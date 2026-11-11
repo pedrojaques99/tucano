@@ -7610,6 +7610,15 @@ kbd {
   .routine-form .grid2:has(.routine-days) {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* A connector's tools: the name column gives way (long names wrap) so the on/off toggle stays visible. */
+  .tools__head,
+  .tools__row {
+    grid-template-columns: minmax(0, 1fr) 108px 60px 40px;
+    gap: 8px;
+  }
+  .tools__row code {
+    overflow-wrap: anywhere;
+  }
   /* Rows with an address: no harness tags, so the name and the button fit. */
   .from-harness__row .tag {
     display: none;

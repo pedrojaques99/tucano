@@ -70,6 +70,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **Routines fit a phone.** The card of an empty week sat inside the week, which on a phone is 640 px wide and scrolls sideways, so its title and third template were cut off; it now sits over the visible calendar and its templates wrap. In a routine's form, the three "When it runs" choices and the row of weekdays forced the form 161 px wider than the screen; the choices now wrap inside their buttons and the time goes under the weekdays.
+### Fixed
+
+- **A connector's tool list keeps its On toggle on a phone.** The list had fixed columns for the class, High risk and On, and a tool-name column that wouldn't shrink, so at phone width the toggles were cut in half past the edge of the connector's window. On a phone the columns are narrower and a long tool name wraps.
 
 ## [0.2.27] - 2026-11-10
 

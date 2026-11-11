@@ -61,7 +61,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "eduwxyz",
+        "owner": "pedrojaques99",
         "repo": "tucano"
       }
     ],

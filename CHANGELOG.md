@@ -13,6 +13,7 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 - **An approval's Refuse button stays on screen on a phone.** The approval card put Approve, Approve and always allow, and Refuse on one line that didn't wrap, so at phone width (where server mode sends people to approve) Refuse was cut off past the edge and the conversation scrolled sideways. The buttons now wrap to a second line.
 - **The sleeping toucan shows on the dark theme.** The empty Approvals page (and For you, with a team) draws a sleeping toucan whose body was a fixed near-black, so on the dark theme only its closed eyes and beak floated on the page. Its body now takes the text color and its eyes the panel color, so it reads on both themes.
 - **The tabs of Settings and of an agent's page scroll on a phone.** They sat in one row that couldn't scroll or wrap, so at phone width the last tab was cut off, a long label broke over two lines, and the whole page scrolled sideways. The tab row now scrolls sideways on its own and each label stays on one line.
+- **Routines fit a phone.** The card of an empty week sat inside the week, which on a phone is 640 px wide and scrolls sideways, so its title and third template were cut off; it now sits over the visible calendar and its templates wrap. In a routine's form, the three "When it runs" choices and the row of weekdays forced the form 161 px wider than the screen; the choices now wrap inside their buttons and the time goes under the weekdays.
 
 ## [0.2.27] - 2026-11-10
 

@@ -4,7 +4,7 @@
 // Google's and Slack's sign in with an app the person makes once, which the first Connect walks them through.
 import { useEffect, useState, type ReactNode } from 'react'
 import { L } from '../../../shared/lang'
-import { catalogInput, CATEGORIES, entryOf, ownAppGuide, searchCatalog, type AppProvider, type CatalogEntry } from '../../../shared/connector-catalog'
+import { CATALOG, catalogInput, CATEGORIES, entryOf, logoKeyOf, ownAppGuide, searchCatalog, type AppProvider, type CatalogEntry } from '../../../shared/connector-catalog'
 import { LOGOS } from '../connector-logos'
 import { addConnector, authorizeConnector, openExternal, ownApp, setOwnApp, useStore, type Connector } from '../store'
 import { Modal } from './Modal'
@@ -17,14 +17,14 @@ const light = (hex: string): boolean => {
 }
 
 // Brands without a mark in Simple Icons, or with only a wordmark: their initial, on their color.
-const OWN_COLOR: Record<string, string> = { jam: 'FF2D55', monday: '6161FF', granola: '3F6212', canva: '00C4CC', context7: '0F172A', exa: '1F40ED', aave: 'B6509E', coinbase: '0052FF', zapier: 'FF4F00', composio: '1A1A1A', 'azure-devops': '0078D4', cloudwatch: 'E7157B' }
+const OWN_COLOR: Record<string, string> = { adobe: 'FA0F00', premiere: '9999FF', visant: '111111', heygen: '7559FF', jam: 'FF2D55', monday: '6161FF', granola: '3F6212', canva: '00C4CC', context7: '0F172A', exa: '1F40ED', aave: 'B6509E', coinbase: '0052FF', zapier: 'FF4F00', composio: '1A1A1A', 'azure-devops': '0078D4', cloudwatch: 'E7157B' }
 
-export function CatalogLogo({ entry, size = 36 }: { entry: CatalogEntry; size?: number }): ReactNode {
+export function CatalogLogo({ entry, size = 36 }: { entry: { id: string; name: string }; size?: number }): ReactNode {
   const logo = LOGOS[entry.id]
   const hex = logo?.hex ?? OWN_COLOR[entry.id] ?? '64748B'
   const ink = light(hex) ? '#111' : '#fff'
   return (
-    <span className="catalog__logo" style={{ width: size, height: size, background: `#${hex}`, color: ink }} aria-hidden>
+    <span className="catalog__logo" style={{ width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.24)), background: `#${hex}`, color: ink }} aria-hidden>
       {logo ? (
         <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="currentColor">
           <path d={logo.path} />
@@ -32,6 +32,17 @@ export function CatalogLogo({ entry, size = 36 }: { entry: CatalogEntry; size?: 
       ) : (
         <b style={{ fontSize: size * 0.44 }}>{entry.name[0]}</b>
       )}
+    </span>
+  )
+}
+
+// Any connector's logo: its store entry's, else its brand's (logoKeyOf), else what it is (a server, a command).
+export function ConnectorLogo({ connector: c, size = 36 }: { connector: Pick<Connector, 'name' | 'kind' | 'url' | 'command' | 'args'>; size?: number }): ReactNode {
+  const key = logoKeyOf(c)
+  if (key && (LOGOS[key] || OWN_COLOR[key])) return <CatalogLogo entry={{ id: key, name: CATALOG.find((e) => e.id === key)?.name ?? c.name }} size={size} />
+  return (
+    <span className="catalog__logo catalog__logo--own" style={{ width: size, height: size }} aria-hidden>
+      <Icon name={c.kind === 'stdio' ? 'terminal' : 'globe'} size={Math.round(size / 2)} />
     </span>
   )
 }
@@ -86,13 +97,7 @@ export function ConnectorGrid({ status, onManage, query: initial = '' }: { statu
               const fresh = c.tools.filter((t) => t.isNew).length
               return (
                 <div key={c.id} className="catalog__card is-mine" role="button" tabIndex={0} onClick={() => onManage(c.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onManage(c.id))}>
-                  {entry ? (
-                    <CatalogLogo entry={entry} />
-                  ) : (
-                    <span className="catalog__logo catalog__logo--own" aria-hidden>
-                      <Icon name={c.kind === 'stdio' ? 'terminal' : 'globe'} size={18} />
-                    </span>
-                  )}
+                  <ConnectorLogo connector={c} />
                   <span className="catalog__text">
                     <strong>{c.name}</strong>
                     <span className="small catalog__state">
@@ -213,7 +218,8 @@ function ConnectorSetup({ entry, onClose, onAdded }: { entry: CatalogEntry; onCl
   const [values, setValues] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const runs = entry.local && [entry.local.command, ...entry.local.args.filter((a) => !a.includes('{'))].join(' ')
+  // One that ships with Tucano (`tucano <name>`) runs no outside server: its warning says what it does.
+  const runs = entry.local && entry.local.command !== 'tucano' && [entry.local.command, ...entry.local.args.filter((a) => !a.includes('{'))].join(' ')
   const submit = (): void => {
     setError(null)
     let input

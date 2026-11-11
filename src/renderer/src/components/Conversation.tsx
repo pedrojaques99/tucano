@@ -7,7 +7,7 @@ import Markdown, { type ExtraProps } from 'react-markdown'
 import { safeUrl } from '../links'
 import { remarkLocalPaths } from '../../../shared/path-text'
 import { remarkMentions, splitMentions } from '../../../shared/mention-text'
-import { saidAt } from '../../../shared/types'
+import { modelInfo, saidAt } from '../../../shared/types'
 import { localLinkFor } from './LocalLink'
 import remarkGfm from 'remark-gfm'
 import { KeepInWiki, WikiChip, WikiLink, wikiLinks } from './Wiki'
@@ -36,6 +36,7 @@ import { canEditChannel,
   editSummary,
   editThreadSummary,
   ENGINES,
+  patchAgent,
   forgetMemory,
   modelById,
   navigate,
@@ -84,11 +85,16 @@ import { canEditChannel,
   teamMode,
   type Person
 } from '../store'
-import { AgentAvatar, Icon, MeAvatar, ago, ownColor, duration, time, tokens, usd, useJustEnded } from './ui'
+import { AgentAvatar, EngineMark, Icon, MeAvatar, ago, ownColor, duration, time, tokens, usd, useJustEnded } from './ui'
+import { CatalogLogo } from './ConnectorStore'
+import { ModelCombo } from './Harness'
+import { CATALOG } from '../../../shared/connector-catalog'
 import { PanelResize } from './SidebarResize'
 import { canRecord, NoSound, record, type Recording } from '../voice'
 import { useVoice, VoicePopover } from './VoiceSetup'
 import { ArtifactCard, BrowserCard, ServiceCard, SidePanel } from './Panel'
+import { AgentSidePanel } from './Pages'
+import { ChatSidePanel } from './Dialogs'
 import { when } from './Routines'
 import { Proposals } from './Tuca'
 import { FoldToggle } from './Fold'
@@ -163,6 +169,8 @@ export function ConversationView({ id }: { id: string }): ReactNode {
     if (focus && !focusHere) void loadOlder(id, focus)
   }, [id, focus, focusHere])
   const thread = useStore((s) => (s.panel?.kind === 'thread' ? s.panel.id : undefined))
+  const agentPanel = useStore((s) => (s.panel?.kind === 'agent' ? s.panel.id : undefined))
+  const chatPanel = useStore((s) => s.panel?.kind === 'chat' && s.panel.id === id)
   const [showSummary, setShowSummary] = useState(false)
   const firstChannel = useStore((s) => s.conversations.find((c) => c.kind === 'channel'))
 
@@ -217,7 +225,7 @@ export function ConversationView({ id }: { id: string }): ReactNode {
                 ))}
                 <span className="stack__count">{members.length} {L(`agente${members.length === 1 ? '' : 's'}`, `agent${members.length === 1 ? '' : 's'}`)}</span>
                 {editsChannel && (
-                  <button className="icon-btn stack__add" title={L('Adicionar ou remover agentes', 'Add or remove agents')} onClick={() => openDialog({ kind: 'members', id })}>
+                  <button className="icon-btn stack__add" title={L('Adicionar ou remover agentes', 'Add or remove agents')} onClick={() => openPanel(chatPanel ? null : { kind: 'chat', id })}>
                     <Icon name="plus" size={14} />
                   </button>
                 )}
@@ -226,11 +234,9 @@ export function ConversationView({ id }: { id: string }): ReactNode {
             <button className={`btn btn--ghost ${showSummary ? 'is-active' : ''}`} title={L('O que esta conversa já cobriu', 'What this conversation has covered')} onClick={() => setShowSummary(!showSummary)}>
               <Icon name="book" size={14} /> {L('Resumo', 'Summary')}
             </button>
-            {dmAgent && (
-              <button className="icon-btn" title={L('Configurações da conversa', 'Conversation settings')} aria-label={L('Configurações da conversa', 'Conversation settings')} onClick={() => openDialog({ kind: 'settings', id })}>
-                <Icon name="gear" size={16} />
-              </button>
-            )}
+            <button className={`icon-btn ${chatPanel ? 'is-active' : ''}`} title={dmAgent ? L('Configurações da conversa', 'Conversation settings') : L('Configurações do canal', 'Channel settings')} aria-label={dmAgent ? L('Configurações da conversa', 'Conversation settings') : L('Configurações do canal', 'Channel settings')} onClick={() => openPanel(chatPanel ? null : { kind: 'chat', id })}>
+              <Icon name="gear" size={16} />
+            </button>
           </div>
         </header>
 
@@ -239,7 +245,7 @@ export function ConversationView({ id }: { id: string }): ReactNode {
         <MessageList messages={timeline} replies={replies} older={older} conversationId={id} empty={conv.kind === 'channel' && members.length === 0} focus={focus} />
         <Composer conversationId={id} members={members} placeholder={dmAgent ? L(`Mensagem pra ${dmAgent.name}`, `Message ${dmAgent.name}`) : L(`Mensagem em #${title}`, `Message #${title}`)} />
       </section>
-      {thread ? <ThreadPanel rootId={thread} conv={conv} title={conv.kind === 'channel' ? `#${title}` : title} members={members} /> : <SidePanel />}
+      {thread ? <ThreadPanel rootId={thread} conv={conv} title={conv.kind === 'channel' ? `#${title}` : title} members={members} /> : agentPanel ? <AgentSidePanel id={agentPanel} /> : chatPanel ? <ChatSidePanel id={id} /> : <SidePanel />}
     </div>
   )
 }
@@ -484,14 +490,14 @@ const MessageRow = memo(function MessageRow({ message, grouped, replies }: { mes
               <span className="msg__author">{name}</span>
             )}
             {agent?.computer && agent.computerKind === 'mac' && (
-              <span className="tag tag--warn" title={L('Os comandos deste agente rodam direto no seu computador', 'This agent’s commands run right on your computer')}>
-                {L('no seu computador', 'on your computer')}
+              <span className="msg__where" title={L('Os comandos deste agente rodam direto no seu computador', 'This agent’s commands run right on your computer')} aria-label={L('No seu computador', 'On your computer')}>
+                <Icon name="laptop" size={13} />
               </span>
             )}
             <span className="msg__time">{time(saidAt(message))}</span>
           </div>
         )}
-        {message.run && <RunSteps message={message} />}
+        {message.run?.status === 'working' && <RunSteps message={message} />}
         {text ? (
           <div className="md">
             {agent && message.run?.status !== 'working' ? (
@@ -559,8 +565,10 @@ const MessageRow = memo(function MessageRow({ message, grouped, replies }: { mes
             {L(`Aumentar o limite de ${agent.name}`, `Raise ${agent.name}’s limit`)}
           </button>
         )}
-        {(message.run?.receipt || (message.run?.status === 'done' && message.text.trim() && !message.run.wikiChanges?.length)) && (
+        {message.run && message.run.status !== 'working' && (message.run.steps.length > 0 || message.run.receipt || (message.run.status === 'done' && message.text.trim() && !message.run.wikiChanges?.length)) && (
+          // What's behind the reply (its steps, its receipt, keeping it in the wiki): quiet, on hover.
           <div className="msg__meta">
+            <RunSteps message={message} />
             {message.run?.receipt && <ReceiptLine receipt={message.run.receipt} />}
             {message.run?.status === 'done' && message.text.trim() && !message.run.wikiChanges?.length && <KeepInWiki messageId={message.id} />}
           </div>
@@ -1160,10 +1168,11 @@ function useNow(on: boolean): number {
 // steps it took. The steps themselves open on a click.
 function RunSteps({ message }: { message: Message }): ReactNode {
   const run = message.run!
-  // Open while the agent works, so its steps read as they go, unless the person closes it; closed after.
+  // Closed unless asked: while the agent works, one line says what it's doing now and is replaced by the
+  // next; the steps with their commands and logs open on a click ("ver mais").
   const [toggled, setOpen] = useState<boolean | null>(null)
   const working = run.status === 'working'
-  const open = toggled ?? working
+  const open = toggled ?? false
   const now = useNow(working)
   // Just finished: the pulse turns into a green check for a moment, then the chevron is back.
   const justDone = useJustEnded(working, 1600) && run.status === 'done'
@@ -1172,6 +1181,7 @@ function RunSteps({ message }: { message: Message }): ReactNode {
   const total = run.steps.reduce((acc, st) => acc + (st.ms ?? 0), 0)
   const failed = run.steps.filter((st) => st.status === 'error').length
   const current = [...run.steps].reverse().find((st) => st.status === 'running')
+  const said = [...run.steps].reverse().find((st) => st.note)?.note
 
   return (
     <div className={`steps ${open ? 'is-open' : ''} ${working ? 'is-working' : ''}`}>
@@ -1190,7 +1200,7 @@ function RunSteps({ message }: { message: Message }): ReactNode {
         {working ? (
           <span className="shimmer">
             {current
-              ? `${current.label}…`
+              ? `${current.progress ?? current.label}…`
               : now - message.at > 60_000
                 ? L('Ainda trabalhando: tarefas longas demoram mesmo', 'Still working: long tasks do take a while')
                 : run.steps.length === 0
@@ -1206,6 +1216,7 @@ function RunSteps({ message }: { message: Message }): ReactNode {
         )}
         {failed > 0 && <span className="steps__failed">{failed} {L('com falha', 'failed')}</span>}
         {working && <span className="steps__elapsed">{duration(Math.max(0, now - message.at))}</span>}
+        {working && run.steps.length > 0 && <span className="steps__more">{open ? L('ver menos', 'see less') : L('ver mais', 'see more')}</span>}
         {working && (
           <span
             className="btn btn--xs btn--ghost steps__stop"
@@ -1219,6 +1230,12 @@ function RunSteps({ message }: { message: Message }): ReactNode {
           </span>
         )}
       </button>
+      {working && !open && said && (
+        // What the agent said it's doing, in its words: the newest replaces the last.
+        <p key={said} className="steps__now">
+          {said}
+        </p>
+      )}
       {open && (
         <ol className="steps__list">
           {run.steps.map((st) => (
@@ -1230,22 +1247,43 @@ function RunSteps({ message }: { message: Message }): ReactNode {
   )
 }
 
+// The official logo of whom a step is about, from the shared marks: the harness (EngineMark) or the connector (the store's logo).
+function StepMark({ mark }: { mark: NonNullable<Step['mark']> }): ReactNode {
+  if (mark.engine) return <EngineMark engine={mark.engine} size={14} />
+  return mark.connector ? <CatalogLogo entry={{ id: mark.connector, name: CATALOG.find((e) => e.id === mark.connector)?.name ?? mark.connector }} size={14} /> : null
+}
+
 function StepRow({ step }: { step: Step }): ReactNode {
   const [whole, setWhole] = useState(false)
   const [allInput, setAllInput] = useState(false)
   return (
-    <li className={`step step--${step.status}${step.error || step.input || step.output ? ' step--why' : ''}`}>
+    <li className={`step step--${step.status}${step.error || step.input || step.output || step.progress ? ' step--why' : ''}`}>
       <span className="step__icon">
         {step.status === 'running' ? <span className="spinner" /> : <Icon name={step.status === 'done' ? 'check' : 'x'} size={12} />}
       </span>
       <span className="step__label">{step.label}</span>
-      {step.note ? <span className="step__note">{step.note}</span> : step.detail && <code className="step__detail">{step.detail}</code>}
+      {step.note ? (
+        <span className="step__note">{step.note}</span>
+      ) : (
+        step.detail && (
+          <code className="step__detail">
+            {step.mark && <StepMark mark={step.mark} />}
+            {step.detail}
+          </code>
+        )
+      )}
       {step.ms !== undefined && <span className="step__ms">{duration(step.ms)}</span>}
       {step.input && (
         // What it asked (the SQL, the path): two lines, the whole of it on a click.
         <code className={`step__input${allInput ? ' is-whole' : ''}`} title={allInput ? undefined : L('Ver tudo', 'See all')} onClick={() => setAllInput(!allInput)}>
           <span className="step__clamp">{step.input}</span>
         </code>
+      )}
+      {step.status === 'running' && step.progress && (
+        // What a long call says it's doing now (the Figma bridge: "Running use_figma in Figma"); each new one fades in.
+        <span key={step.progress} className="step__progress shimmer">
+          {step.progress}…
+        </span>
       )}
       {step.output && <span className="step__output">→ {step.output}</span>}
       {step.error && (
@@ -1868,6 +1906,13 @@ export function pastedFiles(files: File[], text: string, server: boolean): File[
 }
 
 // `threadId`: it answers in the thread that message started, not in the conversation.
+// The agent's harness and model at the composer (the shared ModelCombo, as a chip). The change counts
+// from the next reply. A member sees it, an admin changes it.
+function ModelChip({ agent }: { agent: Agent }): ReactNode {
+  const admin = useStore(amAdmin)
+  return <ModelCombo variant="chip" value={agent.modelId} disabled={!admin} title={L(`${agent.name} responde com`, `${agent.name} replies with`)} onChange={(modelId) => patchAgent(agent.id, { modelId })} />
+}
+
 export function Composer({ conversationId, threadId, members, placeholder }: { conversationId: string; threadId?: string; members: Agent[]; placeholder: string }): ReactNode {
   const key = threadId ?? conversationId // the draft's
   // The field starts with the conversation's draft, not empty: StrictMode (in dev) unmounts
@@ -2227,9 +2272,14 @@ export function Composer({ conversationId, threadId, members, placeholder }: { c
               e.target.value = ''
             }}
           />
+          {/* In a DM, who answers and on what: the harness and model, changed right here. */}
+          {isDm && !note && !threadId && members[0] && members[0].kind !== 'tuca' ? (
+            <ModelChip agent={members[0]} />
+          ) : (
           <span className={`composer__hint ${note ? 'composer__hint--warn' : ''}`}>
             {note || (members[0]?.kind === 'tuca' ? L('Nada é criado sem você', 'Nothing is created without you') : threadId ? L('Fica nesta thread · @ chama alguém', 'Stays in this thread · @ calls someone') : isDm ? L(`${members[0]?.name ?? 'O agente'} sempre responde aqui`, `${members[0]?.name ?? 'The agent'} always replies here`) : L('Quem estiver no canal responde · pra chamar alguém, use @', 'Whoever is in the channel replies · to call on someone, use @'))}
           </span>
+          )}
           {working.length > 0 ? (
             <button className="btn btn--sm" onClick={() => working.forEach((id) => stopRun(id))}>
               <Icon name="stop" size={12} /> {L('Parar', 'Stop')}

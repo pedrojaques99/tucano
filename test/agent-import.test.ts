@@ -135,6 +135,22 @@ describe('importing agents from OpenBot', () => {
     expect(db.agents()).toHaveLength(3)
   })
 
+  it('brings its group chats as channels, saying what of them stays out', () => {
+    const db = fresh()
+    const channels = [
+      { key: 'c1', name: 'Visant Team', title: '', instructions: '', members: ['lia', 'gil', 'ghost'], lead: 'lia', archived: false, memories: ['Divisão do time.'], routines: [{ key: 'r', name: 'Semanal' }], messages: ['channels/c1/messages-1.json'] },
+      { key: 'c2', name: 'Antigo', members: ['lia'], archived: true }
+    ]
+    const team = readForeignZip(zipFromBuffer(zip({ ...files(), 'openbot-transfer.json': transfer([lia, gil], { channels }) })))
+    expect(team.channels).toEqual([{ name: 'visant-team', members: ['lia', 'gil'] }])
+    const r = applyForeignTeam(db, team, opts)
+    const made = db.conversations().filter((c) => c.kind === 'channel')
+    expect(made.map((c) => [c.name, c.members.length])).toEqual([['visant-team', 2]])
+    expect(r.summary).toContain('#visant-team: 1 memória do canal')
+    expect(r.summary).toContain('as rotinas do canal #visant-team')
+    expect(r.summary).toContain('#visant-team: o histórico de mensagens')
+  })
+
   it('reads the file from disk the same way', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'ad-zip-')), 'export.zip')
     writeFileSync(file, zip(files()))

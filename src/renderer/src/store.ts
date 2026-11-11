@@ -128,7 +128,7 @@ export interface Toast {
 export type Dialog = { kind: 'members' | 'settings'; id: string } | { kind: 'archived' | 'new-channel' | 'search' } | { kind: 'workspaces'; create?: boolean } | { kind: 'oauth'; id: string; url: string }
 
 // `thread`: the replies to a message (its id), next to the conversation.
-export type Panel = { kind: 'artifact'; id: string } | { kind: 'service'; agentId: string; name: string } | { kind: 'browser'; agentId: string } | { kind: 'thread'; id: string }
+export type Panel = { kind: 'artifact'; id: string } | { kind: 'service'; agentId: string; name: string } | { kind: 'browser'; agentId: string } | { kind: 'thread'; id: string } | { kind: 'agent'; id: string } | { kind: 'chat'; id: string }
 
 export const initials = (name: string): string =>
   name
@@ -857,6 +857,15 @@ export const settleDraft = (messageId: string, agentId?: string): void => void f
 export async function openDm(agentId: string): Promise<void> {
   const id = await call('openDm', { agentId })
   navigate({ kind: 'conversation', id })
+}
+
+// An agent's settings open beside the conversation you're in; with none open, beside the agent's DM.
+// An archived agent (no DM to open) still gets its page.
+export async function openAgent(agentId: string): Promise<void> {
+  const agent = agentById(state, agentId)
+  if (!agent || agent.archived) return navigate({ kind: 'agent', id: agentId })
+  if (state.view?.kind !== 'conversation') await openDm(agentId)
+  openPanel({ kind: 'agent', id: agentId })
 }
 
 export function setGrant(agentId: string, connectorId: string, level: GrantLevel): void {

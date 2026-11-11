@@ -4,7 +4,7 @@ import { LOGOS } from '../src/renderer/src/connector-logos'
 
 describe('the connector catalog', () => {
   it('lists each service once, at an https address, in a category that exists', () => {
-    expect(CATALOG.length).toBe(48)
+    expect(CATALOG.length).toBe(49)
     expect(new Set(CATALOG.map((c) => c.id)).size).toBe(CATALOG.length)
     const remote = CATALOG.filter((c) => !c.local)
     expect(new Set(remote.map((c) => c.url)).size).toBe(remote.length)
@@ -20,8 +20,9 @@ describe('the connector catalog', () => {
     }
   })
 
-  it('has a mark only for services in it', () => {
-    for (const id of Object.keys(LOGOS)) expect(CATALOG.some((c) => c.id === id), id).toBe(true)
+  it('has a mark only for services in it, or brands of connectors added by hand', () => {
+    const brands = ['supabase', 'whatsapp', 'google'] // logoKeyOf names them
+    for (const id of Object.keys(LOGOS)) expect(CATALOG.some((c) => c.id === id) || brands.includes(id), id).toBe(true)
     for (const l of Object.values(LOGOS)) expect(l.hex).toMatch(/^[0-9A-F]{6}$/i)
   })
 
@@ -81,8 +82,8 @@ describe('the connector catalog', () => {
     expect(composio.about()).toMatch(/Composio/) // on the card, too
     expect(composio.warning?.()).toMatch(/Composio/)
     expect(searchCatalog('composio').map((c) => c.id)).toEqual(['composio'])
-    // Only the ones that go through someone else's servers say so.
-    expect(CATALOG.filter((c) => c.warning).map((c) => c.id)).toEqual(['composio'])
+    // Only the ones that go through someone else's servers say so (Figma: through Claude Code).
+    expect(CATALOG.filter((c) => c.warning).map((c) => c.id)).toEqual(['composio', 'figma'])
   })
 
   it("signs in to Google's five with the person's app, asking only what their tools need", () => {
@@ -116,5 +117,20 @@ describe('the connector catalog', () => {
     expect(manifest.oauth_config.redirect_urls).toEqual(['http://localhost:47717/oauth/callback'])
     expect(manifest.oauth_config.scopes.user).toEqual(SLACK_SCOPES)
     expect(manifest.oauth_config.scopes.bot).toBeUndefined() // the agents act as the person, with a user token
+  })
+})
+
+describe("a connector's brand, wherever it came from", () => {
+  it('finds the logo of ones brought from Claude Code or OpenCode, or added by hand', async () => {
+    const { logoKeyOf } = await import('../src/shared/connector-catalog')
+    expect(logoKeyOf({ name: 'figma', url: 'https://mcp.figma.com/mcp' })).toBe('figma')
+    expect(logoKeyOf({ name: 'figma-desktop', url: 'http://127.0.0.1:3845/mcp' })).toBe('figma')
+    expect(logoKeyOf({ name: 'supabase-leitura', url: 'https://mcp.supabase.com/mcp?read_only=true' })).toBe('supabase')
+    expect(logoKeyOf({ name: 'whatsapp-business', url: 'https://mcp.facebook.com/whatsapp_business_tools' })).toBe('whatsapp')
+    expect(logoKeyOf({ name: 'google-workspace', command: 'npx', args: ['google-workspace-mcp'] })).toBe('google')
+    expect(logoKeyOf({ name: 'premiere-pro', command: 'node', args: ['premiere-pro-mcp'] })).toBe('premiere')
+    expect(logoKeyOf({ name: 'linear', url: 'https://mcp.linear.app/mcp' })).toBe('linear')
+    expect(logoKeyOf({ name: 'millionsend', url: 'https://api.millionsend.com/mcp' })).toBeUndefined()
+    for (const key of ['figma', 'supabase', 'whatsapp', 'google']) expect(LOGOS[key], key).toBeTruthy()
   })
 })

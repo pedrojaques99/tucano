@@ -513,9 +513,122 @@ h3 {
   overflow-y: auto;
   padding: 4px 8px 12px;
 }
+.group-icons {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin: 2px 6px 6px 22px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--hover);
+}
+.group-icons__pick {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.group-icons__pick:hover {
+  background: var(--active);
+  color: var(--text);
+}
+.group-icons__pick.is-on {
+  background: var(--bg);
+  color: var(--accent);
+}
 .sidebar__foot {
-  padding: 8px;
+  padding: 6px 8px 8px;
   border-top: 1px solid var(--border);
+}
+.sidebar__foot .missions-card {
+  margin: 2px 0 6px;
+}
+.sidebar__dock {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+}
+.sidebar__dock-gap {
+  flex: 1;
+}
+.sidebar__dock .usage-dock {
+  padding: 0;
+}
+.foot-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.foot-icon:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.foot-icon.is-active {
+  background: var(--active, var(--hover));
+  color: var(--text);
+}
+.foot-icon .nav-item__new {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.missions-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.missions-chip:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.missions-chip__track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2.25; /* stroke-ok: a progress ring's track, not an outline */
+}
+.missions-chip__fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.25; /* stroke-ok: a progress ring's fill */
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+.missions-chip__count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.missions-chip > .icon {
+  color: var(--text-3);
+  transform: rotate(-90deg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.missions-chip.is-open > .icon {
+  transform: rotate(90deg);
 }
 .section {
   margin-top: 14px;
@@ -1472,6 +1585,9 @@ h3 {
   color: var(--text);
 }
 .step__detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--text-3);
   font-size: 11.5px;
 }
@@ -1531,6 +1647,12 @@ h3 {
   padding-left: 26px;
   color: var(--text-3);
   font-size: 12px;
+}
+.step__progress {
+  flex-basis: 100%;
+  padding-left: 26px;
+  font-size: 12px;
+  animation: rise var(--dur-base) var(--ease-out) both, shimmer 1.6s linear infinite;
 }
 .step__error.is-whole {
   display: block;
@@ -1880,9 +2002,13 @@ h3 {
   overflow-y: auto;
 }
 .page__inner {
-  max-width: 1040px;
+  max-width: 880px;
   margin: 0 auto;
   padding: 28px 32px 56px;
+}
+/* A page of cards side by side (the connector store) keeps its width. */
+.page__inner:has(.catalog__grid) {
+  max-width: 1040px;
 }
 .page__subtitle {
   margin: 0 0 20px;
@@ -1893,12 +2019,14 @@ h3 {
   margin: 28px 0 10px;
   color: var(--text-2);
 }
+/* A section of a settings-like page: a heading, its controls, a hairline to the next. No box: the
+   boxes around every section were the noise (one SSOT for the app's settings, people, agents). */
 .card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  padding: 18px 20px;
-  box-shadow: 0 1px 2px rgba(60, 40, 20, 0.03);
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.card:last-child {
+  border-bottom: 0;
 }
 .card__head {
   margin-bottom: 12px;
@@ -1919,8 +2047,6 @@ h3 {
 .agent-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  max-width: 720px;
 }
 .agent-side {
   position: sticky;
@@ -2017,14 +2143,34 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 5px 10px;
   cursor: pointer;
 }
-.check:has(input:checked) {
-  border-color: var(--accent);
+/* A channel the agent is in, said once: by color (no box, no tick). The checkbox stays for the keyboard. */
+.checks:not(.checks--skills) .check {
+  color: var(--text-2);
+  background: var(--hover);
+  transition: var(--transition-ui);
+}
+.checks:not(.checks--skills) .check:hover {
+  color: var(--text);
+}
+.checks:not(.checks--skills) .check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.checks:not(.checks--skills) .check:has(input:checked) {
+  color: var(--text);
   background: var(--accent-soft);
+}
+.checks:not(.checks--skills) .check:has(input:checked) .icon {
+  color: var(--accent);
+}
+.checks:not(.checks--skills) .check:has(input:focus-visible) {
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
+  outline-offset: 2px;
 }
 .grants {
   display: flex;
@@ -11271,14 +11417,14 @@ button.agent-card__now:hover {
   color: var(--text-3);
   transition: transform var(--dur-fast) var(--ease-out);
 }
-.skill-tree__node[aria-expanded='true'] > .skill-tree__row--folder > .icon {
+.skill-tree__node[aria-expanded='true'] > .skill-tree__line > .skill-tree__row--folder > .icon {
   transform: rotate(90deg);
 }
 .skill-tree__folder {
   flex: none;
   color: var(--text-2);
 }
-.skill-tree__node[aria-expanded='true'] > .skill-tree__row .skill-tree__folder {
+.skill-tree__node[aria-expanded='true'] > .skill-tree__line > .skill-tree__row .skill-tree__folder {
   color: var(--accent);
 }
 .skill-tree__file {
@@ -11301,6 +11447,50 @@ button.agent-card__now:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.skill-tree__line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+.skill-tree__line > .skill-tree__row {
+  flex: 1;
+  min-width: 0;
+}
+.skill-tree__line.is-off .skill-tree__name,
+.skill-tree__row--file.is-off .skill-tree__name {
+  color: var(--text-3);
+}
+.skill-tree__row--file.is-off .skill-tree__file {
+  opacity: 0.5;
+}
+.skill-tree__state {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.skill-tree__tally {
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.skill-tree__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.skill-tree__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.skill-tree__delete:hover {
+  color: var(--danger);
 }
 .skill-tree__count {
   font-size: 12px;
@@ -12065,4 +12255,574 @@ button.agent-card__now:hover {
 }
 .intro__center--welcome {
   animation: rise var(--dur-enter) var(--ease-out) both;
+}
+/* A group's icon and name, in the sidebar's group heads (GroupedList). */
+.channel-group__head .fold-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.channel-group__head .fold-toggle > span > .icon {
+  color: var(--text-3);
+}
+
+/* Each class of a connector's tools on or off at once (ToolsByClass), above the tools table. */
+.tools-by-class {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.tools-by-class__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--radius);
+  background: var(--hover);
+  font-size: 12.5px;
+}
+.tools-by-class__name {
+  color: var(--text);
+}
+.tools-by-class__item--sensitive .tools-by-class__name {
+  color: var(--warn, var(--text));
+}
+.tools-by-class__count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* While an agent works: the one thing it's doing now (RunSteps), replaced as it goes. */
+.steps__now {
+  margin: 2px 0 4px 21px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+.steps__more {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.steps__toggle:hover .steps__more {
+  color: var(--text-2);
+}
+
+/* ---------- an agent's settings (AgentPage): one column, sections without boxes ---------- */
+.agent-layout--flat {
+  display: block;
+  max-width: 760px;
+}
+.agent-look__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 4px 10px 4px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.agent-look__toggle:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.agent-look__toggle > .icon {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.agent-look__toggle[aria-expanded='true'] > .icon {
+  transform: rotate(90deg);
+}
+.agent-look {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+.agent-usage {
+  display: inline-grid;
+  gap: 4px;
+  min-width: 120px;
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.agent-usage strong {
+  color: var(--text);
+  font-weight: 600;
+}
+/* in the side panel */
+.side-panel--agent {
+  display: flex;
+  flex-direction: column;
+}
+.agent-panel__head {
+  gap: 10px;
+}
+.agent-panel__who {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.agent-panel__who strong {
+  font-size: 14px;
+}
+.agent-panel__who span {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 12px 18px 24px;
+}
+.agent-panel__body > .agent-usage {
+  display: grid;
+  margin-bottom: 8px;
+}
+.agent-panel__body .tabs {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
+  background: var(--panel-bg, var(--bg));
+}
+.page__scroll {
+  scrollbar-gutter: stable;
+}
+
+/* The DM's harness and model, at the composer (ModelChip). */
+.model-chip {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.model-chip__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.model-chip__btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.model-chip__btn:disabled {
+  cursor: default;
+}
+.model-chip__model {
+  overflow: hidden;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.model-chip__btn > .icon {
+  color: var(--text-3);
+  transform: rotate(-90deg);
+}
+.model-chip__pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+  width: 340px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--panel-bg, var(--bg));
+  box-shadow: var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 0.25));
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+.model-chip__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* ---------- chat bubbles: each agent's reply in its own bubble, its meta on hover ---------- */
+.msg--agent:not(.msg--person) .msg__body > .md {
+  width: fit-content;
+  max-width: min(100%, 720px);
+  padding: 9px 14px;
+  border-radius: 6px 18px 18px 18px;
+  background: var(--bubble);
+}
+.msg--agent.msg--grouped:not(.msg--person) .msg__body > .md {
+  border-top-left-radius: 18px;
+}
+.msg--agent:not(.msg--person) .msg__body > .md > :first-child {
+  margin-top: 0;
+}
+.msg--agent:not(.msg--person) .msg__body > .md > :last-child {
+  margin-bottom: 0;
+}
+/* the row under it: steps, receipt, keep in the wiki. Small, and there only on hover or focus
+   (or while something in it is open, or a step failed). */
+.msg__meta {
+  align-items: center;
+  column-gap: 10px;
+  min-height: 22px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.msg:hover .msg__meta,
+.msg:focus-within .msg__meta,
+.msg__meta:has(.steps.is-open),
+.msg__meta:has(.receipt__table),
+.msg__meta:has(.steps__failed) {
+  opacity: 1;
+}
+.msg__meta .steps {
+  margin: 0;
+}
+.msg__meta .steps.is-open {
+  flex-basis: 100%;
+  order: 9;
+}
+.msg__meta .steps__toggle,
+.msg__meta .receipt__line,
+.msg__meta .wiki-keep .link {
+  font-size: 11.5px;
+}
+.msg__meta .wiki-keep .link {
+  color: var(--text-3);
+}
+.msg__meta .wiki-keep .link:hover {
+  color: var(--text);
+}
+@media (hover: none) {
+  .msg__meta {
+    opacity: 1;
+  }
+}
+
+/* A folded section hides its groups too (only the conversation you're in stays in sight). */
+.section.is-folded .channel-group__head,
+.section.is-folded .group-icons,
+.section.is-folded .channel-drop {
+  display: none;
+}
+/* An agent's row: its DM on a click, its settings behind the gear (on hover, or while open). */
+.nav-item--agent {
+  position: relative;
+}
+.nav-item__hit {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item__hit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.nav-item__gear {
+  position: relative;
+  display: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.nav-item--agent:hover .nav-item__gear,
+.nav-item__gear:focus-visible,
+.nav-item__gear.is-on {
+  display: grid;
+}
+.nav-item__gear:hover,
+.nav-item__gear.is-on {
+  color: var(--text);
+  background: var(--active);
+}
+.nav-item--agent:hover .nav-item__role {
+  display: none;
+}
+
+/* A skill's own switch, on its row in the tree (SkillTree). */
+.skill-tree__leaf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+.skill-tree__leaf > .skill-tree__row {
+  flex: 1;
+  min-width: 0;
+}
+.skill-tree__leaf > .toggle {
+  transform: scale(0.85);
+}
+
+/* ---------- a conversation's settings beside it (ChatSidePanel) ---------- */
+.side-panel--chat {
+  display: flex;
+  flex-direction: column;
+}
+.chat-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 8px 18px 24px;
+}
+.chat-panel__section {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.chat-panel__section:last-child {
+  border-bottom: 0;
+}
+.chat-panel__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chat-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.chat-panel__row > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.chat-panel__row small {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.chat-panel__member {
+  gap: 10px;
+}
+
+/* ---------- harness and model in one picker (ModelCombo) ---------- */
+.model-combo {
+  position: relative;
+  min-width: 0;
+}
+.model-combo--chip {
+  flex: 1;
+}
+.model-combo__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.model-combo__btn:disabled {
+  cursor: default;
+}
+.model-combo--field .model-combo__btn {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  background: var(--input-bg, var(--hover));
+  color: var(--text);
+  font-size: 13.5px;
+}
+.model-combo--field .model-combo__btn > .icon {
+  margin-left: auto;
+}
+.model-combo--chip .model-combo__btn {
+  height: 26px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.model-combo__btn:hover:not(:disabled) {
+  background: var(--active);
+  color: var(--text);
+}
+.model-combo__model {
+  overflow: hidden;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.model-combo--field .model-combo__model {
+  color: var(--text-2);
+}
+.model-combo__btn > .icon {
+  color: var(--text-3);
+  transform: rotate(90deg);
+}
+.model-combo__pop {
+  position: absolute;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--panel-bg, var(--bg));
+  box-shadow: 0 0 0 1px var(--border), 0 16px 40px rgb(0 0 0 / 0.28);
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+.model-combo__pop--chip {
+  bottom: calc(100% + 8px);
+}
+.model-combo__pop--field {
+  top: calc(100% + 6px);
+}
+.model-combo__title {
+  padding: 2px 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.model-menu {
+  display: grid;
+  gap: 8px;
+}
+.model-menu__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--text-3);
+}
+.model-menu__filter input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.model-menu__cols {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 8px;
+  min-height: 180px;
+  max-height: 320px;
+}
+.model-menu__engines,
+.model-menu__models {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+.model-menu__engines {
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+.model-menu__engines button,
+.model-menu__models button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.model-menu__engines button:hover,
+.model-menu__models button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.model-menu__engines button.is-on {
+  background: var(--active);
+  color: var(--text);
+}
+.model-menu__models button.is-on {
+  color: var(--text);
+}
+.model-menu__models button.is-on > .icon {
+  margin-left: auto;
+  color: var(--accent);
+}
+.model-menu__name {
+  white-space: nowrap;
+}
+.model-menu__hint {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.model-menu__note {
+  padding: 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.model-menu__more {
+  color: var(--text-3) !important;
+}
+.model-menu__other {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+}
+.model-menu__other input {
+  flex: 1;
+  min-width: 0;
+}
+/* "on your computer", as a quiet mark beside the name */
+.msg__where {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-3);
 }

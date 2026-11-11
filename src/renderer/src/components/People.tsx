@@ -381,7 +381,7 @@ function PhoneCard(): ReactNode {
   return (
     <Card
       title={L('Conectar um celular', 'Connect a phone')}
-      lead={L('Use o Tucano no iPhone com a sua conta daqui: suas DMs, suas aprovações e as perguntas que os agentes fazem pra você.', 'Use Tucano on an iPhone with your account here: your DMs, your approvals and the questions agents ask you.')}
+      lead={L('Suas DMs, aprovações e perguntas dos agentes no iPhone, com a sua conta daqui.', 'Your DMs, approvals and agents’ questions on an iPhone, with your account here.')}
       action={
         !code ? (
           <button className="btn btn--primary btn--sm" onClick={make}>

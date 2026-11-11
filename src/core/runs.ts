@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { L, locale } from '../shared/lang'
 import { friendly, toolLabel } from '../shared/errors'
+import { logoKeyOf } from '../shared/connector-catalog'
 import type { CoreEvent } from '../shared/rpc'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ACCESS_REQUEST, CACHE_READ_WEIGHT, describeSchedule, workIn, ENGINES, ERRORS_STOP, usable, modelInfo, PENDING_WAIT_MINUTES, REPEAT_STOP, REPEAT_WARN, SAME_TOOL_STOP, SAME_TOOL_WARN, SLEEPS_FREE, SLEEPS_STOP, RUN_BUDGET_PCT, RUN_STALL_MINUTES, chainDepthCap, IMAGE_MIMES, MAX_IMAGE_BYTES, MAX_IMAGES_PER_MESSAGE, MAX_FILE_BYTES, MAX_FILES_PER_MESSAGE, type FileUpload, type Account, type Agent, type Approval, type Artifact, type ImageUpload, type Connector, type ConnectorTool, type Conversation, type EngineId, type Message, type Quota, type Receipt, type Reserve, MAX_MORE_RESERVES, type Person, type Question, type Routine, type Run, type RunStatus, type Settings, type Step, delegating, wikiAccess, MAX_PROPOSALS, proposalKey, proposalsOf } from '../shared/types'
@@ -249,7 +250,7 @@ export interface RunnerDeps {
 // What the runner needs from the connector manager.
 export interface Connectors {
   list(): Connector[]
-  call(id: string, name: string, args: Record<string, unknown>): Promise<CallToolResult>
+  call(id: string, name: string, args: Record<string, unknown>, onProgress?: (message: string) => void): Promise<CallToolResult>
 }
 
 type Exposed = { connector: Connector; tool: ConnectorTool & { inputSchema: Record<string, unknown> } }
@@ -953,7 +954,7 @@ export class Runner {
     const msg: Message = opts.existing ?? { id: randomUUID(), conversationId: conv.id, author: { kind: 'agent', id: agent.id }, text: '', at: Date.now(), ...(opts.threadId ? { threadId: opts.threadId } : {}) }
     const started = Date.now()
     let stepStarted = started
-    const thinking = (): Step => ({ id: randomUUID(), label: L('Pensando', 'Thinking'), detail: engineLabel, status: 'running' })
+    const thinking = (): Step => ({ id: randomUUID(), label: L('Pensando', 'Thinking'), detail: engineLabel, mark: { engine: engineId }, status: 'running' })
     msg.text = ''
     // "Try again" passes no task: it repeats the one of the reply it's redoing.
     const task = opts.task ?? opts.existing?.run?.task
@@ -1918,7 +1919,7 @@ ${note}`,
           db.createApproval(approval)
           emit({ type: 'approval', approval })
           msg.run = { ...msg.run!, approvalId: approval.id }
-          addSteps({ id: randomUUID(), label: L('Pediu aprovação', 'Asked for approval'), detail, ...(judgedNow.why === 'guard' ? { note: guardNote() } : {}), status: 'done' })
+          addSteps({ id: randomUUID(), label: L('Pediu aprovação', 'Asked for approval'), detail, ...(logoKeyOf(hit.connector) ? { mark: { connector: logoKeyOf(hit.connector)! } } : {}), ...(judgedNow.why === 'guard' ? { note: guardNote() } : {}), status: 'done' })
           notifyApproval(L(`${agent.name} pede aprovação`, `${agent.name} asks for approval`), `${toolLabel(current.name)} · ${hit.connector.name}${approval.why ? `: ${approval.why}` : ''}`)
           return textResult(
             L(
@@ -1929,7 +1930,8 @@ ${note}`,
         }
 
         const t0 = Date.now()
-        const step: Step = { id: randomUUID(), label: cls === 'read' ? L('Consultou', 'Looked up') : judgedNow.why === 'always' ? L('Executou (sempre permitido)', 'Ran (always allowed)') : cls === 'sensitive' || judgedNow.why === 'rule' ? L('Executou (sem pedir: autonomia)', 'Ran (no ask: autonomy)') : L('Executou', 'Ran'), detail, status: 'running' }
+        const logo = logoKeyOf(hit.connector)
+        const step: Step = { id: randomUUID(), label: cls === 'read' ? L('Consultou', 'Looked up') : judgedNow.why === 'always' ? L('Executou (sempre permitido)', 'Ran (always allowed)') : cls === 'sensitive' || judgedNow.why === 'rule' ? L('Executou (sem pedir: autonomia)', 'Ran (no ask: autonomy)') : L('Executou', 'Ran'), detail, ...(logo ? { mark: { connector: logo } } : {}), status: 'running' }
         // What it asked (the SQL, the path) shows while it runs; what came back, when it's done.
         const input = keyArg(callArgs)
         if (input) step.input = input
@@ -1941,12 +1943,18 @@ ${note}`,
           const error = why && maskSecrets(why)
           if (error) console.warn(`[connector] ${detail} failed: ${error}`)
           const reason = error ? { error: error.length > STEP_ERROR_MAX ? `${error.slice(0, STEP_ERROR_MAX)}…` : error } : output ? { output } : {}
-          msg.run = { ...msg.run!, steps: [...msg.run!.steps.map((s) => (s.id === step.id ? { ...s, status, ms: Date.now() - t0, ...reason } : s)), thinking()] }
+          msg.run = { ...msg.run!, steps: [...msg.run!.steps.map((s) => (s.id === step.id ? { ...s, status, ms: Date.now() - t0, progress: undefined, ...reason } : s)), thinking()] }
           stepStarted = Date.now()
           save()
         }
         try {
-          const first = await this.deps.connectors!.call(hit.connector.id, current.name, callArgs)
+          // What the server says while it runs (the Figma bridge: "opening Claude Code", "running in Figma") shows on the step.
+          const onProgress = (message: string): void => {
+            if (msg.run!.steps.find((s) => s.id === step.id)?.status !== 'running') return
+            msg.run = { ...msg.run!, steps: msg.run!.steps.map((s) => (s.id === step.id ? { ...s, progress: maskSecrets(message).slice(0, 120) } : s)) }
+            save()
+          }
+          const first = await this.deps.connectors!.call(hit.connector.id, current.name, callArgs, onProgress)
           sawOutside() // what a connector answers is someone else's text: an email, an issue, a page
           // A query still running: the app waits for it here, with the connector's own status tool, instead
           // of the agent sleeping and asking again. Not a status tool the agent called itself (asking whether a

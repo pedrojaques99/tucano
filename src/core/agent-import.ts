@@ -169,7 +169,21 @@ export function readOpenBot(zip: Zip): ForeignTeam {
   if (arr(settings['customProviders']).length) notes.push(L('os provedores de modelo próprios', 'the custom model providers'))
   if (arr(settings['routineFlows']).length) notes.push(L('os fluxos entre rotinas', 'the routine flows'))
   if (m['shared']) notes.push(L('a pasta Shared', 'the Shared folder'))
-  return { source: 'OpenBot', agents, servers, notes, channels: [] }
+  // Its group chats ("channels"), by agent key. What a channel keeps besides its members stays out, said.
+  const keys = new Set(agents.map((a) => a.key))
+  const channels = capped(m['channels'], IMPORT_CAPS.channels, channelsOver, notes).flatMap((item) => {
+    const c = obj(item)
+    const name = channelName(str(c['name'], 80))
+    if (!name || c['archived'] === true) return []
+    const members = arr(c['members']).filter((k): k is string => typeof k === 'string' && keys.has(k))
+    const mem = arr(c['memories']).length
+    if (mem) notes.push(L(`#${name}: ${mem} ${mem > 1 ? 'memórias' : 'memória'} do canal`, `#${name}: ${mem} channel ${mem > 1 ? 'memories' : 'memory'}`))
+    if (arr(c['routines']).length) notes.push(L(`as rotinas do canal #${name} (crie de novo no canal)`, `the routines of #${name} (make them again in the channel)`))
+    if (arr(c['messages']).length) notes.push(L(`#${name}: o histórico de mensagens`, `#${name}: the message history`))
+    const topic = str(c['title'], 200) || str(c['instructions'], 200)
+    return [{ name, topic: topic || undefined, members: [...new Set(members)] }]
+  })
+  return { source: 'OpenBot', agents, servers, notes, channels }
 }
 
 function openBotAgent(zip: Zip, a: Record<string, unknown>): ForeignAgent | undefined {
@@ -186,7 +200,8 @@ function openBotAgent(zip: Zip, a: Record<string, unknown>): ForeignAgent | unde
     : ''
   const description = str(a['description'], 2_000)
   const instructions = (fromFile || description).slice(0, MAX_INSTRUCTIONS)
-  if (!fromFile) notes.push(description ? L('as instruções (só veio a descrição: exporte com os arquivos)', 'the instructions (only the description came: export with the files)') : L('as instruções (exporte com os arquivos)', 'the instructions (export with the files)'))
+  // OpenBot keeps an agent's prompt in its description (there is no other field), so only none at all is a loss.
+  if (!fromFile && !description) notes.push(L('as instruções (exporte com os arquivos)', 'the instructions (export with the files)'))
   if (files) notes.push(L('os outros arquivos do workspace', 'the other workspace files'))
 
   const { modelId, note } = openBotModel(str(a['provider'], 32), str(a['model'], 256))

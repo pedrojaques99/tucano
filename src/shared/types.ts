@@ -161,6 +161,8 @@ export interface Step {
   error?: string // why it failed, in the tool's own words
   input?: string // what the call asked, the argument that says it (the SQL, the path), as it was sent
   output?: string // what came back, in a few words ("120 rows")
+  mark?: { engine?: EngineId; connector?: string } // whose official logo goes before the detail: a harness, or a catalog connector (by its catalog id)
+  progress?: string // what a long call says it's doing now ("Rodando use_figma no Figma"), only while it runs
   status: StepStatus
   ms?: number
 }
@@ -433,6 +435,8 @@ export interface Settings {
   jevKey?: boolean // a TypeSafe key is saved (the key itself never leaves the core)
   voice?: VoiceSettings
   channelLayout?: ChannelLayout // the person's order and groups in the sidebar
+  agentLayout?: ChannelLayout // the same, for the agents
+  dmLayout?: ChannelLayout // the same, for the direct messages
   browserJev?: boolean // Jev finds what agents click in their browsers (each click sends the page to TypeSafe)
   memoryModel: string // summarizes conversations and extracts memories
   memoryLearning: 'approve' | 'auto' | 'off' // what extracted memories about me become

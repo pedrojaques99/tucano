@@ -360,7 +360,11 @@ const runHelper = (cmd: string): Promise<string | undefined> => {
 async function foundMcps(): Promise<FoundMcp[]> {
   const env = { ...process.env, ...(await loginEnv()) }
   const have = new Set(connectors.list().map((c) => (c.kind === 'remote' ? `url:${(c.url ?? '').replace(/\/+$/, '')}` : `cmd:${[c.command, ...(c.args ?? [])].join(' ')}`)))
-  return harnessMcps({}, env).map((m) => ({ ...m, added: have.has(m.key) }))
+  // Figma's remote server turns Tucano's sign-in away (it takes only the apps on its list): the store's Figma
+  // reaches it through Claude Code instead, so it isn't offered here to fail.
+  return harnessMcps({}, env)
+    .filter((m) => !/^url:https?:\/\/mcp\.figma\.com(\/|$)/i.test(m.key))
+    .map((m) => ({ ...m, added: have.has(m.key) }))
 }
 
 // Where a harness on a gateway sends its requests, and with which key, as its own config says.

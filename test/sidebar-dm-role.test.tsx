@@ -1,6 +1,5 @@
-// A DM's row in the sidebar shows its agent's role, like the agent's row under "Agentes" (#29): grey,
-// cut with an ellipsis, in full on hover, and with a team, whose agent it is. The working dot and the
-// unread count stay next to it.
+// An agent's row in the sidebar is its DM too (one list, "Agentes"): its role after the name (grey, cut
+// with an ellipsis, in full on hover, and with a team, whose agent it is), and its DM's unread count.
 import { parseHTML } from 'linkedom'
 import { act } from 'react'
 import type { Root } from 'react-dom/client'
@@ -37,7 +36,7 @@ const sectionRow = (section: string): Element => {
   const head = [...document.querySelectorAll('.section')].find((x) => x.textContent?.includes(section))!
   return head.querySelector('.nav-item')!
 }
-const dmRow = (): Element => sectionRow('ensagens diretas')
+const dmRow = (): Element => sectionRow('Agentes')
 
 beforeEach(() => (root = createRoot(document.getElementById('root')!)))
 afterEach(async () => {
@@ -45,21 +44,21 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-describe("a DM's row in the sidebar", () => {
-  it("shows the agent's role after its name, the same element as the agent's row", async () => {
+describe("an agent's row in the sidebar, which is its DM", () => {
+  it("shows the agent's role after its name; there is no separate DM list", async () => {
     await render({ agents: [agent({})], conversations: [dm({}), { id: 'c1', kind: 'channel', name: 'geral', members: ['a1'] }] })
     expect(sectionRow('Canais').textContent).toContain('geral')
     expect(sectionRow('Canais').querySelector('.nav-item__role')).toBeNull()
+    expect([...document.querySelectorAll('.section')].some((x) => x.textContent?.includes('ensagens diretas'))).toBe(false)
     const role = dmRow().querySelector('.nav-item__label + .nav-item__meta.nav-item__role')!
     expect(role.textContent).toBe('Pesquisadora')
     expect(role.getAttribute('title')).toBe('Pesquisadora')
-    expect(role.outerHTML).toBe(sectionRow('Agentes').querySelector('.nav-item__role')!.outerHTML)
   })
 
-  it('keeps the unread count after the role', async () => {
+  it("keeps its DM's unread count after the role", async () => {
     await render({ agents: [agent({})], conversations: [dm({ unread: 3 })] })
     const parts = [...dmRow().children].map((x) => x.className)
-    expect(parts.indexOf('nav-item__meta nav-item__role')).toBeLessThan(parts.findIndex((c) => c.includes('badge')))
+    expect(parts.findIndex((c) => c.includes('nav-item__hit'))).toBeLessThan(parts.findIndex((c) => c.includes('badge')))
     expect(dmRow().querySelector('.badge')!.textContent).toBe('3')
   })
 

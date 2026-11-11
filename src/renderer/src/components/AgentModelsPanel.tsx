@@ -43,30 +43,34 @@ export function AgentModelsPanel(): ReactNode {
     <section className="card agent-models" aria-label={L('Modelos dos agentes', 'Agent models')}>
       <div className="card__head">
         <h2>{L('Modelos dos agentes', 'Agent models')}</h2>
-        <p className="muted">{L('Troque o modelo de cada agente ou aplique o mesmo a vários de uma vez. Vale para as próximas respostas; as que já começaram seguem como estão.', 'Change each agent’s model or apply one to several at once. Applies to future replies; replies already running continue as they are.')}</p>
+        <p className="muted">{L('O modelo de cada agente, um a um ou vários de uma vez. Vale pras próximas respostas.', 'Each agent’s model, one by one or several at once. Applies to the next replies.')}</p>
       </div>
       <fieldset disabled={busy} className="agent-models__controls">
-        <div className="agent-models__bulk">
-          <strong>{L('Alterar em lote', 'Bulk change')}</strong>
-          <ModelPicker value={model} onChange={setModel} />
-          <p className="hint">{L('Ao trocar de harness, o agente passa a usar o login padrão dele. O modelo reserva continua igual.', 'When switching harnesses, the agent uses its default login. The reserve model stays the same.')}</p>
-          <div className="row">
-            <button type="button" className="btn btn--primary btn--sm" disabled={!targets.length || !modelInfo(model)?.id} onClick={() => void save(targets.map((a) => a.id), model)}>
-              {L(`Aplicar aos selecionados (${targets.length})`, `Apply to selected (${targets.length})`)}
-            </button>
-            <span className="muted small">{L(`${scope.length} ${scope.length === 1 ? 'agente disponível' : 'agentes disponíveis'}`, `${scope.length} ${scope.length === 1 ? 'agent' : 'agents'} available`)}</span>
-          </div>
-        </div>
         <div className="agent-models__filters">
           <input type="search" aria-label={L('Buscar agentes', 'Search agents')} placeholder={L('Buscar por nome ou @identificador', 'Search by name or @handle')} value={search} onChange={(e) => setSearch(e.target.value)} />
-          <label className="row"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{L('Incluir arquivados', 'Include archived')}</label>
+          <label className="row small"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{L('Incluir arquivados', 'Include archived')}</label>
         </div>
-        <div className="row row--between">
-          <label className="row"><input type="checkbox" checked={allVisible} disabled={!visible.length} onChange={() => setSelected((ids) => allVisible ? ids.filter((id) => !visible.some((a) => a.id === id)) : [...new Set([...ids, ...visible.map((a) => a.id)])])} />{L('Selecionar todos os exibidos', 'Select all displayed')}</label>
-          {selected.length > 0 && <button type="button" className="link" onClick={() => setSelected([])}>{L('Limpar seleção', 'Clear selection')}</button>}
-        </div>
-        <p className="hint">{L('A aplicação em lote inclui os selecionados que estiverem fora da busca. Arquivados só entram com a opção acima marcada.', 'Bulk changes include selected agents outside the search. Archived agents are included only when the option above is checked.')}</p>
         <div className="agent-models__list">
+          <div className="agent-models__listhead">
+            <label className="row small"><input type="checkbox" checked={allVisible} disabled={!visible.length} onChange={() => setSelected((ids) => allVisible ? ids.filter((id) => !visible.some((a) => a.id === id)) : [...new Set([...ids, ...visible.map((a) => a.id)])])} />{L('Selecionar todos os exibidos', 'Select all displayed')}</label>
+            <span className="muted small">{L(`${scope.length} ${scope.length === 1 ? 'agente' : 'agentes'}`, `${scope.length} ${scope.length === 1 ? 'agent' : 'agents'}`)}</span>
+          </div>
+          {/* Several picked: one model for all of them, right where they were picked. */}
+          {targets.length > 0 && (
+            <div className="agent-models__bulk" role="group" aria-label={L('Alterar em lote', 'Bulk change')}>
+              <div className="agent-models__bulkhead">
+                <strong>{L(`${targets.length} ${targets.length === 1 ? 'selecionado' : 'selecionados'}`, `${targets.length} selected`)}</strong>
+                <button type="button" className="link small" onClick={() => setSelected([])}>{L('Limpar seleção', 'Clear selection')}</button>
+              </div>
+              <ModelPicker value={model} onChange={setModel} />
+              <div className="row">
+                <button type="button" className="btn btn--primary btn--sm" disabled={!modelInfo(model)?.id} onClick={() => void save(targets.map((a) => a.id), model)}>
+                  {L(`Aplicar aos selecionados (${targets.length})`, `Apply to selected (${targets.length})`)}
+                </button>
+                <span className="hint">{L('Trocando de harness, eles usam o login padrão dele. A reserva fica igual.', 'Switching harness, they use its default login. The reserve stays.')}</span>
+              </div>
+            </div>
+          )}
           {visible.map((agent) => <AgentModelRow key={agent.id} agent={agent} selected={selected.includes(agent.id)} onSelect={() => setSelected((ids) => ids.includes(agent.id) ? ids.filter((id) => id !== agent.id) : [...ids, agent.id])} onSave={save} />)}
           {!visible.length && <p className="muted">{agents.length ? L('Nenhum agente encontrado.', 'No agents found.') : L('Crie um agente para escolher o modelo dele aqui.', 'Create an agent to choose its model here.')}</p>}
         </div>
@@ -90,10 +94,14 @@ function AgentModelRow({ agent, selected, onSelect, onSave }: { agent: Agent; se
         <div><strong>{agent.name}</strong><div className="muted small">@{agent.handle}{agent.archived ? L(' · Arquivado', ' · Archived') : ''}{agent.kind === 'tuca' ? L(' · Assistente do app', ' · App assistant') : ''}</div></div>
       </div>
       <div className="agent-models__choice">
-        <span className="muted small">{L('Em uso:', 'Current:')} {current ? `${ENGINES[current.engine].label} · ${current.label}` : agent.modelId}</span>
         <ModelPicker value={value} onChange={setDraft} />
+        {value !== agent.modelId && <span className="muted small">{L('Em uso:', 'Current:')} {current ? `${ENGINES[current.engine].label} · ${current.label}` : agent.modelId}</span>}
       </div>
-      <button type="button" className="btn btn--sm" disabled={value === agent.modelId || !modelInfo(value)?.id} onClick={async () => { if (await onSave([agent.id], value)) setDraft(null) }}>{L('Salvar', 'Save')}</button>
+      {value !== agent.modelId ? (
+        <button type="button" className="btn btn--primary btn--sm" disabled={!modelInfo(value)?.id} onClick={async () => { if (await onSave([agent.id], value)) setDraft(null) }}>{L('Salvar', 'Save')}</button>
+      ) : (
+        <span className="agent-models__spacer" aria-hidden />
+      )}
     </div>
   )
 }

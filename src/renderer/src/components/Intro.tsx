@@ -6,8 +6,8 @@
 // invited to a team gets their own short welcome instead (GuestWelcome).
 import { L } from '../../../shared/lang'
 import { CATALOG, entryOf } from '../../../shared/connector-catalog'
-import { agentModel, aiState, autonomyChosen, isFastModel, backgroundModel, FIRST_AUTONOMY, GOALS, goalForText, needsSignIn, storedAutonomy, type Goal } from '../../../shared/onboarding'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { agentModel, aiState, autonomyChosen, backgroundModel, FIRST_AUTONOMY, GOALS, goalForText, needsSignIn, storedAutonomy, type Goal, type GoalId } from '../../../shared/onboarding'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ENGINES,
   ENGINE_IDS,
@@ -39,6 +39,7 @@ import {
   messagesIn,
   windowless,
   amOwner,
+  dmWith,
   initials,
   type Agent,
   type AgentColor,
@@ -49,7 +50,7 @@ import {
   type SetupEngine,
   type SetupState
 } from '../store'
-import { HarnessList } from './Harness'
+import { HarnessList, JobCard, useModelGroups } from './Harness'
 import { BackupCard, STATUS, Toggle } from './Pages'
 import { Select } from './Select'
 import { useEngineModels } from './Harness'
@@ -57,12 +58,15 @@ import { Splash } from './Splash'
 import { Composer, composerDraft, MessageList, setComposerDraft, useDictation, VoiceButton } from './Conversation'
 import { draftAgent, UseDraft } from './Tuca'
 import { Onboarding } from './Onboarding'
+import { ToucanHero } from './ToucanHero'
+import { GoalArt } from './GoalArt'
+import { BotImport } from './BotImport'
 import { CatalogLogo, ConnectorGrid } from './ConnectorStore'
 import { Modal } from './Modal'
 import { AutonomyPick } from './AutonomyPick'
 import { EngineProblem } from './EngineProblem'
 import { explainEngineError } from '../../../shared/engine-errors'
-import { AgentAvatar, EngineMark, Icon, MeAvatar, TucaMark } from './ui'
+import { AgentAvatar, AVATARS, BackButton, EngineMark, Icon, MeAvatar, TucaMark } from './ui'
 
 // The opening plays once per run of the app, not again when the language changes.
 let opened = false
@@ -79,7 +83,9 @@ export function unique(base: string, taken: string[]): string {
 
 // A goal as an agent draft: who it is, what it knows, the web when the goal needs it, nothing else.
 export function agentFromGoal(goal: Goal, base: Agent, modelId: string | undefined): Agent {
-  return { ...base, name: goal.name, role: goal.role, color: goal.color, customColor: undefined, instructions: goal.instructions, web: goal.web, browser: false, computer: false, ...(modelId ? { modelId } : {}) }
+  // The avatar of its trade (a magnifier for research), which the person can change on the next screen.
+  const avatar = AVATARS.find((x) => x.id === goal.look)
+  return { ...base, name: goal.name, role: goal.role, color: goal.color, customColor: undefined, avatar, picture: undefined, instructions: goal.instructions, web: goal.web, browser: false, computer: false, ...(modelId ? { modelId } : {}) }
 }
 
 export function Intro(): ReactNode {
@@ -90,6 +96,8 @@ export function Intro(): ReactNode {
   const [step, setStep] = useState<Step>('welcome')
   const [name, setName] = useState(settings.workspaceName)
   const [path, setPath] = useState<Path>('guided')
+  // Agents brought from another bot on the welcome: no first agent to make, the app opens on them.
+  const [imported, setImported] = useState(false)
   const [models, setModels] = useState<{ router: string; memory: string } | null>(null)
   const [goal, setGoal] = useState<Goal | null>(null)
   // How far it goes on its own starts on Normal, the recommended answer (kept as "Padrão" while Settings say Normal).
@@ -141,6 +149,19 @@ export function Intro(): ReactNode {
 
   const close = (): void => updateSettings({ onboarding: { ...settings.onboarding, done: true } })
 
+  // From another bot: the agents are here already; the first run ends on the first of them.
+  async function finishImported(m: { router: string; memory: string }): Promise<void> {
+    const o = getState().settings.onboarding
+    updateSettings({
+      workspaceName: name.trim() || settings.workspaceName,
+      routerModel: m.router,
+      memoryModel: m.memory,
+      onboarding: { ...o, done: true, ...(path === 'short' ? { showAll: true, checklistHidden: true, tour: { done: ['first'], skipped: true } } : { tour: { done: ['first'] } }) }
+    })
+    const first = getState().agents.find(isTeam)
+    navigate(first ? { kind: 'conversation', id: await dmWith(first.id) } : { kind: 'approvals' })
+  }
+
   if (opening) return <Splash onDone={onOpened} />
   if (step === 'manual')
     return <Onboarding manual={{ onBack: () => go('goal'), onCreate: (a, task) => call(a, task) }} />
@@ -154,8 +175,8 @@ export function Intro(): ReactNode {
         </button>
       )}
       <div className="intro__stage" key={step} data-dir={dir}>
-        {step === 'welcome' && <Welcome name={name} setName={setName} path={path} setPath={setPath} onNext={() => go('ai')} />}
-        {step === 'ai' && <ConnectAi name={name} onBack={() => go('welcome')} onNext={(m) => (setModels(m), go('goal'))} />}
+        {step === 'welcome' && <Welcome name={name} setName={setName} path={path} setPath={setPath} onNext={() => go('ai')} onImported={() => setImported(true)} />}
+        {step === 'ai' && <ConnectAi name={name} onBack={() => go('welcome')} onNext={(m) => (imported ? void finishImported(m) : (setModels(m), go('goal')))} />}
         {step === 'goal' && <AskGoal name={name} onPick={pick} onOwn={(t) => pick(goalForText(t))} onManual={() => go('manual')} onBack={() => go('ai')} />}
         {step === 'agent' && goal && <Born agent={agent} goal={goal} patch={(p) => setAgent((a) => ({ ...a, ...p }))} busy={busy} error={error} onCall={() => void call(agent, goal.task)} onAdjust={() => go('adjust')} onBack={() => go('goal')} />}
         {step === 'adjust' && goal && (
@@ -220,12 +241,11 @@ function Dots({ at }: { at: number }): ReactNode {
 function Top({ at, onBack, right }: { at: number; onBack?: () => void; right?: ReactNode }): ReactNode {
   return (
     <div className="intro__top">
-      <Dots at={at} />
-      {right ?? (onBack && (
-        <button className="intro-link intro-link--quiet" onClick={onBack}>
-          {L('Voltar', 'Back')}
-        </button>
-      ))}
+      <span className="intro__top-left">
+        {onBack && <BackButton onClick={onBack} />}
+        <Dots at={at} />
+      </span>
+      {right}
     </div>
   )
 }
@@ -277,69 +297,116 @@ function LangToggle(): ReactNode {
 
 // ---------- 1. hello ----------
 
-function Welcome({ name, setName, path, setPath, onNext }: { name: string; setName: (v: string) => void; path: Path; setPath: (p: Path) => void; onNext: () => void }): ReactNode {
+// The welcome, one thing at a time: first only the two ways in (new to agents, or already using them),
+// then that way's own screen. New: the name, and on. Already using agents: the name, and how they come
+// in (the AI they already have, agents from another bot, an invite or a server), each one's panel only
+// once picked. The toucan stays beside all of it.
+type WelcomeStep = 'pick' | 'new' | 'known'
+type Known = 'connect' | 'bots' | 'join' | 'restore'
+
+function Welcome({ name, setName, setPath, onNext, onImported }: { name: string; setName: (v: string) => void; path: Path; setPath: (p: Path) => void; onNext: () => void; onImported: () => void }): ReactNode {
   const servers = !!window.tucano?.servers
-  const [joining, setJoining] = useState(false)
   // A Tucano on a server, new: whoever used Tucano on their computer brings it all here instead.
   const web = windowless()
-  const [restoring, setRestoring] = useState(false)
-  const paths: { id: Path; title: string; hint: string }[] = [
-    { id: 'guided', title: L('Sou novo com agentes de IA', 'I’m new to AI agents'), hint: L('Mostro cada parte no momento em que ela importa.', 'I show each part at the moment it matters.') },
-    { id: 'short', title: L('Já uso agentes', 'I already use agents'), hint: L('Sem tour. A barra lateral completa desde o início.', 'No tour. The full sidebar from the start.') }
+  const [step, setStep] = useState<WelcomeStep>('pick')
+  const [known, setKnown] = useState<Known>('connect')
+  const choose = (p: Path): void => (setPath(p), setStep(p === 'guided' ? 'new' : 'known'))
+  const nameField = (
+    <label className="intro-field">
+      {L('Como posso te chamar?', 'What should I call you?')}
+      <input className="intro-input" autoFocus value={name} placeholder={L('Seu nome', 'Your name')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && (step === 'new' || known === 'connect') && onNext()} />
+    </label>
+  )
+  const ways: { id: Known; title: string; hint: string; show: boolean }[] = [
+    { id: 'connect', title: L('Conectar a IA que eu já uso', 'Connect the AI I already use'), hint: L('Claude Code, Codex, OpenCode e outros, como você já configurou.', 'Claude Code, Codex, OpenCode and more, as you already set them up.'), show: true },
+    { id: 'bots', title: L('Trazer agentes de outro bot', 'Bring agents from another bot'), hint: 'OpenBot, Hermes, Grok Bot, OpenMaus…', show: true },
+    { id: 'join', title: L('Tenho um convite ou um servidor', 'I have an invite or a server'), hint: L('Entrar num time que já existe.', 'Join a team that already exists.'), show: servers },
+    { id: 'restore', title: L('Já uso o Tucano no computador', 'I already use Tucano on my computer'), hint: L('Trazer tudo de lá pra cá.', 'Bring everything from there.'), show: web }
   ]
   return (
-    <section className="intro__full">
-      <div className="intro__top">
-        <Dots at={0} />
-        <LangToggle />
-      </div>
-      <div className="intro__center intro__center--welcome">
-        <TucaMark size={44} />
-        <h1 className="intro-h1">
-          {L('Seu time de IA,', 'Your AI team,')}
-          <br />
-          {L('no seu computador.', 'on your computer.')}
-        </h1>
-        <p className="intro-lead">{L('Agentes que pesquisam, escrevem e organizam por você. Você conversa com eles num chat, e nada importante acontece sem o seu ok.', 'Agents that research, write and organize for you. You talk to them in a chat, and nothing important happens without your ok.')}</p>
-        <label className="intro-field">
-          {L('Como posso te chamar?', 'What should I call you?')}
-          <input className="intro-input" autoFocus value={name} placeholder={L('Seu nome', 'Your name')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && onNext()} />
-        </label>
-        <div className="intro-paths" role="radiogroup" aria-label={L('Como você quer começar', 'How you want to start')}>
-          {paths.map((x) => (
-            <button key={x.id} role="radio" aria-checked={path === x.id} className={`intro-path ${path === x.id ? 'is-on' : ''}`} onClick={() => setPath(x.id)}>
-              <span className="intro-path__radio" aria-hidden />
-              <span className="intro-card__text">
-                <b>{x.title}</b>
-                <span>{x.hint}</span>
-              </span>
-            </button>
-          ))}
+    <div className="intro__split intro__split--hero">
+      {/* It greets by name once the person is on their way in, not with the system's default name. */}
+      <ToucanHero name={step === 'pick' ? '' : name} />
+      <section className="intro__main">
+        <div className="intro__top">
+          <span className="intro__top-left">
+            {step !== 'pick' && <BackButton onClick={() => setStep('pick')} />}
+            <Dots at={0} />
+          </span>
+          <LangToggle />
         </div>
-        <div className="intro-actions">
-          <button className="intro-btn" disabled={!name.trim()} onClick={onNext}>
-            {L('Começar', 'Get started')}
-          </button>
-          {servers && (
-            <button className="intro-link" aria-expanded={joining} onClick={() => setJoining(!joining)}>
-              {L('Tenho um convite ou um servidor', 'I have an invite or a server')}
-            </button>
+        <div className="intro__center intro__center--welcome" key={step}>
+          {step === 'pick' && (
+            <>
+              <h1 className="intro-h1 intro-h1--hero">
+                {L('Seu time de IA,', 'Your AI team,')}
+                <br />
+                {L('no seu computador.', 'on your computer.')}
+              </h1>
+              <p className="intro-lead">{L('Agentes que pesquisam, escrevem e organizam por você. Você conversa com eles num chat, e nada importante acontece sem o seu ok.', 'Agents that research, write and organize for you. You talk to them in a chat, and nothing important happens without your ok.')}</p>
+              <div className="intro-ways">
+                <button className="intro-way" onClick={() => choose('guided')}>
+                  <b>{L('Sou novo com agentes de IA', 'I’m new to AI agents')}</b>
+                  <span>{L('Te mostro cada parte no momento em que ela importa.', 'I show you each part at the moment it matters.')}</span>
+                  <Icon name="chevron" size={16} />
+                </button>
+                <button className="intro-way" onClick={() => choose('short')}>
+                  <b>{L('Já uso agentes', 'I already use agents')}</b>
+                  <span>{L('Conecto o que você tem e saio do caminho.', 'I connect what you have and get out of the way.')}</span>
+                  <Icon name="chevron" size={16} />
+                </button>
+              </div>
+            </>
           )}
-          {web && (
-            <button className="intro-link" aria-expanded={restoring} onClick={() => setRestoring(!restoring)}>
-              {L('Já uso o Tucano no computador', 'I already use Tucano on my computer')}
-            </button>
+          {step === 'new' && (
+            <>
+              <h1 className="intro-h2">{L('Primeiro, seu nome', 'First, your name')}</h1>
+              <p className="intro-lead intro-lead--sm">{L('É como o Tuca e o seu time vão te chamar.', 'It’s what Tuca and your team will call you.')}</p>
+              {nameField}
+              <div className="intro-actions">
+                <button className="intro-btn" disabled={!name.trim()} onClick={onNext}>
+                  {L('Começar', 'Get started')}
+                </button>
+              </div>
+            </>
+          )}
+          {step === 'known' && (
+            <>
+              <h1 className="intro-h2">{L('Como você chega?', 'How are you coming in?')}</h1>
+              {nameField}
+              <div className="intro-paths intro-paths--list" role="radiogroup" aria-label={L('Como você chega', 'How you come in')}>
+                {ways
+                  .filter((w) => w.show)
+                  .map((w) => (
+                    <button key={w.id} role="radio" aria-checked={known === w.id} className={`intro-path ${known === w.id ? 'is-on' : ''}`} onClick={() => setKnown(w.id)}>
+                      <span className="intro-path__radio" aria-hidden />
+                      <span className="intro-card__text">
+                        <b>{w.title}</b>
+                        <span>{w.hint}</span>
+                      </span>
+                    </button>
+                  ))}
+              </div>
+              {known === 'bots' && <BotImport onImported={onImported} />}
+              {(known === 'connect' || known === 'bots') && (
+                <div className="intro-actions">
+                  <button className="intro-btn" disabled={!name.trim()} onClick={onNext}>
+                    {L('Continuar', 'Continue')}
+                  </button>
+                </div>
+              )}
+              {known === 'join' && <JoinLink />}
+              {known === 'restore' && (
+                <div className="intro-restore">
+                  <BackupCard />
+                </div>
+              )}
+            </>
           )}
         </div>
-        {joining && <JoinLink />}
-        {restoring && (
-          <div className="intro-restore">
-            <BackupCard />
-          </div>
-        )}
-      </div>
-      <span className="intro-foot">{L('Conversas, memória e logins ficam no seu computador.', 'Conversations, memory and logins stay on your computer.')}</span>
-    </section>
+        <span className="intro-foot">{L('Conversas, memória e logins ficam no seu computador.', 'Conversations, memory and logins stay on your computer.')}</span>
+      </section>
+    </div>
   )
 }
 
@@ -531,7 +598,7 @@ function ConnectAi({ name, onBack, onNext }: { name: string; onBack: () => void;
 function TucaHead(): ReactNode {
   return (
     <div className="intro-tuca">
-      <TucaMark size={52} />
+      <TucaMark size={52} live />
       <span>
         <b>Tuca</b>
         <span>{L('te ajuda a começar', 'helps you get started')}</span>
@@ -925,43 +992,10 @@ function BackgroundPickers({ models, setModels }: { models: { router: string; me
   const m = models ?? { router: '', memory: '' }
   const groups = useModelGroups()
   return (
-    <div className="intro-jobs">
+    <div className="job-cards">
       <JobCard title={L('Escolhe quem responde', 'Picks who replies')} value={m.router} groups={groups} onChange={(v) => setModels({ ...m, router: v })} />
       <JobCard title={L('Cuida da memória', 'Keeps the memory')} value={m.memory} groups={groups} onChange={(v) => setModels({ ...m, memory: v })} />
-      <span className="intro-muted intro-jobs__hint">{L('Quem responde decide, num canal, qual agente fala, e a memória resume conversas longas. Um modelo rápido basta. Dá pra trocar depois em Configurações.', 'Who replies decides which agent speaks in a channel, and the memory sums up long talks. A quick model is enough. You can change them later in Settings.')}</span>
-    </div>
-  )
-}
-
-// Every ready harness's models, by harness, for one menu (a hook per harness, in a fixed order).
-function useModelGroups(): Record<string, Record<string, string>> {
-  const engines = useStore((s) => s.settings.engines)
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- ENGINE_IDS is fixed, so the hooks keep their order
-  const lists = ENGINE_IDS.map((e) => [e, useEngineModels(engines[e].loggedIn && !engines[e].soon && !engines[e].off ? e : undefined)] as const)
-  const groups: Record<string, Record<string, string>> = {}
-  for (const [e, l] of lists) {
-    if (!l.options.length) continue
-    groups[ENGINES[e].label] = Object.fromEntries(l.options.map((o) => [o.value, o.hint ? `${o.label} · ${o.hint}` : o.label]))
-  }
-  return groups
-}
-
-function JobCard({ title, value, groups, onChange }: { title: string; value: string; groups: Record<string, Record<string, string>>; onChange: (v: string) => void }): ReactNode {
-  const info = modelInfo(value)
-  const name = info?.label ?? (value.includes(':') ? value.slice(value.indexOf(':') + 1) : value)
-  return (
-    <div className="intro-job">
-      {info ? <EngineMark engine={info.engine} size={36} /> : <span className="intro-bring__dot" aria-hidden />}
-      <span className="intro-job__text">
-        <span className="intro-job__title">{title}</span>
-        <span className="intro-job__model">
-          <b>{value ? name : L('Escolher', 'Choose')}</b>
-          {value && <span className={`intro-job__tag ${isFastModel(value) ? 'is-fast' : ''}`}>{isFastModel(value) ? L('rápido', 'fast') : L('forte', 'strong')}</span>}
-        </span>
-      </span>
-      <Icon name="caret" size={14} />
-      {/* The whole card is the menu's trigger: the app's Select, laid over it. */}
-      <Select className="intro-job__select" aria-label={title} value={value || null} groups={groups} searchable onChange={(v) => v && onChange(v)} />
+      <span className="intro-muted job-cards__hint">{L('Quem responde decide, num canal, qual agente fala, e a memória resume conversas longas. Um modelo rápido basta. Dá pra trocar depois em Configurações.', 'Who replies decides which agent speaks in a channel, and the memory sums up long talks. A quick model is enough. You can change them later in Settings.')}</span>
     </div>
   )
 }
@@ -1006,14 +1040,6 @@ function Advanced({ models, setModels, onBack, onNext }: { models: { router: str
 
 // ---------- 3. the Tuca asks ----------
 
-const TILE_ICONS: Record<string, { d: ReactNode }> = {
-  week: { d: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></> },
-  research: { d: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
-  write: { d: <path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" /> },
-  customers: { d: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z" /> },
-  sheets: { d: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 9h18M3 15h18M9 3v18" /></> },
-  code: { d: <path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12" /> }
-}
 
 function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPick: (g: Goal) => void; onOwn: (text: string) => void; onManual: () => void; onBack: () => void }): ReactNode {
   const engines = useStore((s) => s.settings.engines)
@@ -1032,6 +1058,7 @@ function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPi
     <section className="intro__full">
       <Top
         at={2}
+        onBack={onBack}
         right={
           <span className="intro__top-right">
             {plan && (
@@ -1039,15 +1066,12 @@ function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPi
                 <span className="intro-status__dot" /> {L(`${plan} conectado`, `${plan} connected`)}
               </span>
             )}
-            <button className="intro-link intro-link--quiet" onClick={onBack}>
-              {L('Voltar', 'Back')}
-            </button>
           </span>
         }
       />
       <div className="intro__center intro__center--narrow">
         <div className="intro-ask">
-          <TucaMark size={56} />
+          <TucaMark size={56} live />
           <div className="intro-ask__bubbles">
             <Bubble>{first ? L(`Tudo conectado, ${first}. Agora o seu primeiro agente.`, `All connected, ${first}. Now your first agent.`) : L('Tudo conectado. Agora o seu primeiro agente.', 'All connected. Now your first agent.')}</Bubble>
             <Bubble strong>
@@ -1058,9 +1082,7 @@ function AskGoal({ name, onPick, onOwn, onManual, onBack }: { name: string; onPi
         <div className="intro-tiles" role="group" aria-labelledby="intro-goal-q">
           {GOALS().map((g) => (
             <button key={g.id} className="intro-tile" onClick={() => onPick(g)}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`intro-tile__icon is-${g.id}`}>
-                {TILE_ICONS[g.id]!.d}
-              </svg>
+              <GoalArt id={g.id as GoalId} />
               <span>{g.title}</span>
             </button>
           ))}
@@ -1115,13 +1137,13 @@ function Born(p: { agent: Agent; goal: Goal; patch: (a: Partial<Agent>) => void;
   const guard = useStore((s) => s.settings.outsideGuard ?? true)
   return (
     <div className="intro__split">
-      <div className="intro-art intro-art--agent">
+      <div className={`intro-art intro-art--agent c-${agent.color}`} style={agent.customColor ? ({ '--agent': agent.customColor } as CSSProperties) : undefined}>
         <div className="intro-art__say">
-          <TucaMark size={44} />
+          <TucaMark size={44} happy live />
           <Bubble>{L(`Montei ${name} a partir do que você pediu. Ajuste o que quiser antes de chamar.`, `I built ${name} from what you asked. Adjust anything before bringing it in.`)}</Bubble>
         </div>
         <span className="intro-born">
-          <AgentAvatar agent={{ ...agent, name }} size={96} />
+          <AgentAvatar agent={{ ...agent, name }} size={132} />
         </span>
         <div className="intro-name">
           {naming ? (

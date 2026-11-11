@@ -549,10 +549,63 @@ export function applyForeignTeam(db: Db, team: ForeignTeam, opts: { defaultLimit
   return { summary: `${done}${same}${servers}${out}`, agents: added.agents, memories: added.memories }
 }
 
+// ---------- Hermes Agent ----------
+//
+// Hermes Agent keeps one agent in a folder of plain files (`~/.hermes`): SOUL.md is who it is, skills/
+// holds its SKILL.md folders, memories/ its MEMORY.md and USER.md. The .zip of that folder (or of any
+// folder holding a SOUL.md) comes in as one agent: the soul as its instructions, its skills, and its
+// memories waiting for the person to confirm. Its config, keys, sessions and cron jobs stay out.
+
+// Where the Hermes folder sits in the .zip: the shallowest SOUL.md, at the top or one folder down.
+export function hermesBase(zip: Zip): string | undefined {
+  const souls = [...zip.entries.keys()].filter((n) => /^(?:[^/]+\/)?SOUL\.md$/.test(n)).sort((a, b) => a.length - b.length)
+  return souls[0]?.slice(0, -'SOUL.md'.length)
+}
+export const isHermes = (zip: Zip): boolean => hermesBase(zip) !== undefined
+
+// A memory file's entries: Hermes separates them with a "§" line; bullet lists count too.
+export function hermesMemories(text: string): string[] {
+  const parts = text.includes('§') ? text.split(/^\s*§\s*$/m) : text.split(/^\s*[-*]\s+/m)
+  return parts.map((t) => t.replace(/^#.*$/gm, '').trim()).filter(Boolean)
+}
+
+export function readHermes(zip: Zip): ForeignTeam {
+  const base = hermesBase(zip)
+  if (base === undefined) throw new Error(L('Esse .zip não tem o SOUL.md de um agente Hermes.', "That .zip has no Hermes agent's SOUL.md."))
+  const notes: string[] = []
+  const soul = zip.read(`${base}SOUL.md`, MAX_TEXT)?.toString('utf8') ?? ''
+  // The name: the soul's first heading, else the folder's, else "Hermes".
+  const heading = /^#\s+(.+)$/m.exec(soul)?.[1]?.replace(/[*_`]/g, '').trim()
+  const folder = base.replace(/\/$/, '').replace(/^\./, '')
+  const name = str(heading || (folder && folder !== 'hermes' ? folder : '') || 'Hermes', 80)
+  // The whole soul, however long (instructions are kept whole): a long one gets the same note as any other.
+  const instructions = soul
+  const longSoul = instructionLengthNote(soul.length)
+  if (longSoul) notes.push(longSoul)
+  // Skills sit in skills/<name>/ or skills/<category>/<name>/; each folder holding a SKILL.md is one.
+  const skillDirs = [...zip.entries.keys()].filter((n) => n.startsWith(`${base}skills/`) && n.endsWith('/SKILL.md')).map((n) => n.slice(0, -'/SKILL.md'.length))
+  const skills = readSkills(zip, skillDirs, base, notes)
+  const memory = (f: string): string[] => hermesMemories(zip.read(`${base}memories/${f}`, MAX_TEXT)?.toString('utf8') ?? '')
+  const memories = memoriesOf([...memory('USER.md'), ...memory('MEMORY.md')], notes)
+  notes.push(L('o modelo do Hermes (ficou o modelo padrão)', 'the Hermes model (it got the default model)'))
+  const left: string[] = []
+  if (zip.entries.has(`${base}config.yaml`)) left.push(L('a configuração (config.yaml)', 'the config (config.yaml)'))
+  if ([...zip.entries.keys()].some((n) => n.startsWith(`${base}cron/`))) left.push(L('as tarefas agendadas (crie de novo como rotinas)', 'the scheduled jobs (make them again as routines)'))
+  if (zip.entries.has(`${base}.env`) || zip.entries.has(`${base}auth.json`)) left.push(L('as chaves e logins (nunca entram)', 'the keys and logins (they never come in)'))
+  return {
+    source: 'Hermes',
+    agents: [{ key: 'hermes', name, role: '', instructions, effort: 'medium', skills, routines: [], memories, notes }],
+    channels: [],
+    servers: [],
+    notes: left
+  }
+}
+
 // Reads whichever app the .zip came from.
 export function readForeignZip(zip: Zip): ForeignTeam {
   if (isOpenBotTransfer(zip)) return readOpenBot(zip)
   if (zip.entries.has(TUCANO_IMPORT)) return readTucanoImport(zip)
+  if (isHermes(zip)) return readHermes(zip)
   if (zip.entries.has('openbot-import.json')) throw new Error(L('Esse .zip foi feito pro OpenBot. Pra trazer do Grok Bot, use a skill de exportação do Tucano (botão "Skill pro Grok Bot").', 'That .zip was made for OpenBot. To bring agents from Grok Bot, use Tucano\'s export skill (the "Skill for Grok Bot" button).'))
-  throw new Error(L('Não reconheci esse .zip. O Tucano importa a exportação do OpenBot (Configurações do servidor → Transfer → Export) e a do Grok Bot feita com a skill do Tucano.', "I didn't recognize that .zip. Tucano imports OpenBot's export (Server settings → Transfer → Export) and Grok Bot's, made with Tucano's skill."))
+  throw new Error(L('Não reconheci esse .zip. O Tucano importa a exportação do OpenBot (Configurações do servidor → Transfer → Export), a pasta de um agente Hermes (com o SOUL.md) e a de outros bots feita com a skill do Tucano.', "I didn't recognize that .zip. Tucano imports OpenBot's export (Server settings → Transfer → Export), a Hermes agent's folder (with its SOUL.md) and other bots' made with Tucano's skill."))
 }

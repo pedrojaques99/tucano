@@ -31,7 +31,6 @@ import {
   setTelegramToken,
   unpairTelegram,
   exportTeam,
-  importAgents,
   importTeam,
   backupNow,
   openBackups,
@@ -84,7 +83,7 @@ import { ActivityPane, AdminOnly, PeoplePane } from './People'
 import { voiceRefusal } from '../../../shared/voice'
 import { ACTION_KINDS, actionHint, actionMode, AUTONOMY_LEVELS, autonomyHint, autonomyLabel, COMPUTADOR, kindLabel, modeLabel, shellActions, type ActionKind, type ActionMode, type ActionRules, type Autonomy, type Policy } from '../../../shared/actions'
 import { useVoice, VOICE_CHOICES, VoiceSetup } from './VoiceSetup'
-import { AccountPicker, AccountsCard, HarnessList, HarnessMcps, ModelPicker, onGateway, OutsideGateway, usableEngines } from './Harness'
+import { AccountPicker, AccountsCard, BehindTheScenes, HarnessList, HarnessMcps, ModelPicker, onGateway, OutsideGateway, usableEngines } from './Harness'
 import { AppsCard } from './Apps'
 import { AgentModelsPanel } from './AgentModelsPanel'
 import { ConnectorGrid, OwnAppSetup, ThirdPartyWarning } from './ConnectorStore'
@@ -103,7 +102,7 @@ import { hasServers, ServersCard } from './Servers'
 import { HomePhoneCard } from './HomePhone'
 import { useWorkspaceList } from './Workspaces'
 import { workspaceLabel } from '../../../shared/workspaces'
-import exportSkill from '../assets/tucano-export-skill.md?raw'
+import { BotImport } from './BotImport'
 
 export function Page({ title, subtitle, actions, children }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode }): ReactNode {
   return (
@@ -2054,24 +2053,9 @@ export function LanguagePicker({ className = '' }: { className?: string }): Reac
 
 // Issue to PR (spec §22): the token the app pushes agent/* branches and opens PRs with.
 // The team as a file, and backups of everything.
-const MAX_UPLOAD = 40_000_000 // a browser's request has a cap (64 MB) and base64 grows a third
 function TeamCard(): ReactNode {
   const [note, setNote] = useState('')
   const settings = useStore((s) => s.settings)
-  // Grok Bot has no export: one of the person's agents there runs this skill and writes our .zip.
-  const grokSkill = (): void => {
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([exportSkill], { type: 'text/markdown' }))
-    a.download = 'SKILL.md'
-    a.click()
-    URL.revokeObjectURL(a.href)
-    setNote(
-      L(
-        'Baixei o SKILL.md. No Grok Bot, dê a skill a um dos seus agentes (ou cole o texto numa conversa com ele) e peça: "Exporte meus agentes pro Tucano". Ele te devolve um .zip, que você abre em "Importar de outro app…". É experimental: ainda não foi testada dentro do Grok Bot, então confira o resumo da importação.',
-        'I downloaded SKILL.md. In Grok Bot, give the skill to one of your agents (or paste its text in a chat with it) and ask: "Export my agents to Tucano". It gives you back a .zip, which you open with "Import from another app…". It\'s experimental: it hasn\'t been tried inside Grok Bot yet, so check the import summary.'
-      )
-    )
-  }
   const download = (): void => {
     setNote('')
     exportTeam().then((md) => {
@@ -2095,25 +2079,8 @@ function TeamCard(): ReactNode {
     if (!file) return
     void file.text().then(importTeam).then(setNote, failed)
   }
-  // Another app's export: on the desktop the core reads the file where it is; in a browser it goes up whole.
-  const fromApp = (file?: File): void => {
-    if (!file) return
-    setNote(L('Lendo o arquivo…', 'Reading the file…'))
-    const path = window.tucano.pathOf?.(file)
-    if (path) return void importAgents({ path }).then(setNote, failed)
-    if (file.size > MAX_UPLOAD) return setNote(L('Arquivo grande demais pra mandar pelo navegador. Importe no app do computador, ou exporte sem os arquivos.', 'File too big to send through the browser. Import it in the desktop app, or export without the files.'))
-    void file
-      .arrayBuffer()
-      .then((b) => {
-        const bytes = new Uint8Array(b)
-        let bin = ''
-        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-        return importAgents({ data: btoa(bin) })
-      })
-      .then(setNote, failed)
-  }
   return (
-    <Card title={L('Time', 'Team')} lead={L('O time num arquivo .md (agentes, skills, canais e rotinas, sem credenciais nem conversas), pra guardar ou levar pra outro computador. Os agentes do OpenBot e do Grok Bot também entram, sem nenhum conector e com a busca na web desligada.', 'The team in a .md file (agents, skills, channels and routines, without credentials or conversations), to keep or take to another computer. Agents from OpenBot and Grok Bot come in too, with no connector and web search off.')}>
+    <Card title={L('Time', 'Team')} lead={L('O time num arquivo .md (agentes, skills, canais e rotinas, sem credenciais nem conversas), pra guardar ou levar pra outro computador. Agentes do OpenBot, do Hermes, do Grok Bot e de outros bots também entram, sem nenhum conector e com a busca na web desligada.', 'The team in a .md file (agents, skills, channels and routines, without credentials or conversations), to keep or take to another computer. Agents from OpenBot, Hermes, Grok Bot and other bots come in too, with no connector and web search off.')}>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <button className="btn btn--sm" onClick={download}>
           {L('Exportar time', 'Export team')}
@@ -2122,31 +2089,10 @@ function TeamCard(): ReactNode {
           {L('Importar time…', 'Import team…')}
           <input type="file" accept=".md,text/markdown" hidden onChange={(e) => upload(e.target.files?.[0])} />
         </label>
-        <label
-          className="btn btn--sm"
-          title={L(
-            'OpenBot: Configurações do servidor → Transfer → Export from this server, com os arquivos. Grok Bot: o .zip feito com a skill do Tucano.',
-            "OpenBot: Server settings → Transfer → Export from this server, with the files. Grok Bot: the .zip made with Tucano's skill."
-          )}
-        >
-          {L('Importar de outro app…', 'Import from another app…')}
-          <input
-            type="file"
-            accept=".zip,application/zip"
-            hidden
-            onChange={(e) => {
-              fromApp(e.target.files?.[0])
-              e.target.value = ''
-            }}
-          />
-        </label>
-        <button
-          className="btn btn--sm"
-          onClick={grokSkill}
-          title={L('Experimental: a skill que exporta seus agentes do Grok Bot pro Tucano. Ainda não foi testada dentro do Grok Bot.', "Experimental: the skill that exports your agents from Grok Bot to Tucano. It hasn't been tried inside Grok Bot yet.")}
-        >
-          {L('Skill pro Grok Bot (experimental)', 'Skill for Grok Bot (experimental)')}
-        </button>
+      </div>
+      <div className="team-card__bots">
+        <b>{L('Trazer agentes de outro bot', 'Bring agents from another bot')}</b>
+        <BotImport />
       </div>
       {note && <p className="small muted" style={{ whiteSpace: 'pre-line' }}>{note}</p>}
     </Card>
@@ -2648,14 +2594,12 @@ export function SettingsPage(): ReactNode {
           </Card>
         )}
 
-        {pane('modelos') && admin && <AgentModelsPanel />}
-
         {pane('modelos') && (
           <Card
             title="Harnesses"
             lead={L(
-              'Os programas em que os agentes rodam, cada um como você configurou: no seu plano, no gateway da empresa ou nos seus provedores. O Tucano nunca vê nem guarda as suas credenciais.',
-              'The programs the agents run on, each one the way you set it up: on your plan, your company’s gateway or your providers. Tucano never sees or stores your credentials.'
+              'Onde os agentes rodam, como você já configurou. O Tucano não vê credenciais.',
+              'Where the agents run, as you already set it up. Tucano never sees credentials.'
             )}
             action={
               <button className="btn btn--ghost btn--sm" onClick={refreshEngines}>
@@ -2671,7 +2615,7 @@ export function SettingsPage(): ReactNode {
           <Card
             title={L('Contas', 'Accounts')}
             lead={L(
-              'Mais de um login do Claude Code ou do Codex, como a conta do trabalho e a pessoal. Cada agente escolhe a conta na página dele. O login acontece no próprio CLI: o Tucano não vê nem guarda a senha.',
+              'Mais de um login do Claude Code ou do Codex, como trabalho e pessoal. Cada agente escolhe o seu.',
               'More than one Claude Code or Codex login, like a work account and a personal one. Each agent picks its account on its page. You sign in through the CLI itself: Tucano never sees or stores the password.'
             )}
           >
@@ -2680,14 +2624,33 @@ export function SettingsPage(): ReactNode {
         )}
 
         {pane('modelos') && (
-          <Card title={L('Roteador', 'Router')} lead={L('Modelo pequeno que lê a conversa e decide quem responde nos canais. Não concede permissão nenhuma.', 'A small model that reads the conversation and decides who replies in channels. It grants no permissions at all.')}>
-            <Field label={L('Modelo do roteador', 'Router model')} hint={L('Prefira um modelo rápido: ele roda antes de cada resposta num canal.', 'Go for a fast model: it runs before every reply in a channel.')}>
-              <ModelSelect value={settings.routerModel} onChange={(routerModel) => updateSettings({ routerModel })} jev />
-            </Field>
+          <Card
+            title={L('Bastidores', 'Behind the scenes')}
+            lead={L('Dois trabalhos pequenos, fora das respostas. Um modelo rápido basta.', 'Two small jobs, outside the replies. A fast model is enough.')}
+          >
+            <BehindTheScenes router={settings.routerModel} memory={settings.memoryModel} onRouter={(routerModel) => updateSettings({ routerModel })} onMemory={(memoryModel) => updateSettings({ memoryModel })} />
             {settings.routerModel === 'jev' && <JevKey saved={!!settings.jevKey} />}
             {settings.routerModel === 'jev' && work && <OutsideGateway what={L('cada mensagem sem @menção vai pra TypeSafe escolher quem responde.', 'every message without an @mention goes to TypeSafe to pick who replies.')} />}
+            <div className="learn-row">
+              <span className="learn-row__label">{L('O que a memória aprende sobre você', 'What the memory learns about you')}</span>
+              <div className="segmented" role="radiogroup" aria-label={L('O que a memória aprende sobre você', 'What the memory learns about you')}>
+                {(
+                  [
+                    ['approve', L('Sugere', 'Suggests'), L('Vira sugestão pra você aprovar', 'A suggestion for you to approve')],
+                    ['auto', L('Grava', 'Saves'), L('Grava sozinho', 'Saved on its own')],
+                    ['off', L('Nada', 'Nothing'), L('Só resume, não aprende', 'Only summarizes, learns nothing')]
+                  ] as const
+                ).map(([v, label, hint]) => (
+                  <button key={v} role="radio" aria-checked={(settings.memoryLearning ?? 'approve') === v} title={hint} className={(settings.memoryLearning ?? 'approve') === v ? 'is-active' : ''} onClick={() => updateSettings({ memoryLearning: v })}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </Card>
         )}
+
+        {pane('modelos') && admin && <AgentModelsPanel />}
 
         {pane('agentes') && (
           <Card
@@ -2726,28 +2689,6 @@ export function SettingsPage(): ReactNode {
         {pane('integracoes') && work && <OutsideGateway what={L('as aprovações, as perguntas dos agentes e o fim das rotinas vão pro seu Telegram, com o texto de cada uma.', 'approvals, the agents’ questions and routine results go to your Telegram, with the text of each.')} />}
         {pane('integracoes') && window.tucano.phone && <HomePhoneCard />}
         {pane('integracoes') && (defaultWorkspace ? <PhoneCard info={settings.telegram} /> : <WorkspaceTelegramNotice />)}
-
-        {pane('modelos') && (
-          <Card title={L('Memória', 'Memory')} lead={L('Um modelo pequeno resume o que sai da janela de cada conversa e, do mesmo trecho, tira o que vale lembrar sobre você.', 'A small model summarizes what leaves each conversation’s window and, from the same stretch, picks what’s worth remembering about you.')}>
-            <div className="grid2">
-              <Field label={L('Modelo da memória', 'Memory model')} hint={L('Roda a cada ~20 mensagens numa conversa longa.', 'Runs every ~20 messages in a long conversation.')}>
-                <ModelSelect value={settings.memoryModel} onChange={(memoryModel) => updateSettings({ memoryModel })} />
-              </Field>
-              <Field label={L('O que ele aprende sobre você', 'What it learns about you')} hint={L('Só conta o que você disse, nunca o que um agente supôs.', 'Only what you said counts, never what an agent assumed.')}>
-                <Select
-                  value={settings.memoryLearning ?? null}
-                  onChange={(v) => { if (v) updateSettings({ memoryLearning: v as typeof settings.memoryLearning }) }}
-                  options={[
-                    { value: 'approve', label: L('Vira sugestão pra você aprovar', 'A suggestion for you to approve') },
-                    { value: 'auto', label: L('Grava sozinho', 'Saved on its own') },
-                    { value: 'off', label: L('Nada (só resume)', 'Nothing (just summarizes)') }
-                  ]}
-                  placeholder={L('Escolha', 'Pick')}
-                />
-              </Field>
-            </div>
-          </Card>
-        )}
 
         {pane('agentes') && (
           <Card title={L('Rotinas', 'Routines')} lead={L('As rotinas rodam enquanto o app está aberto, mesmo com a janela fechada.', 'Routines run while the app is open, even with the window closed.')}>

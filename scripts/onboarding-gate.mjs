@@ -20,6 +20,8 @@ const step = (name, cmd, cmdArgs) => {
 }
 
 const results = []
+// No stroke over 1px without a written reason (heavy outlines are the first thing that reads as AI-made).
+results.push(['strokes', step('strokes (over 1px)', process.execPath, ['scripts/stroke-scan.mjs'])])
 if (!args.includes('--no-build')) results.push(['build', step('build', 'npm', ['run', 'build'])])
 if (results.every(([, s]) => s === 0)) results.push(['screens', step(`screens → ${out}`, process.execPath, ['scripts/screens-onboarding.mjs', out])])
 

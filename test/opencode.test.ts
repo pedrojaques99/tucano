@@ -35,7 +35,8 @@ describe('opencode', () => {
     expect(c['tools']).toEqual({ '*': false, read: true, 'tucano_*': true, webfetch: false, websearch: false })
     expect(c['permission']).toEqual({ read: 'allow', external_directory: 'deny' })
     expect(c['mcp']).toEqual({ tucano: { type: 'remote', url: 'http://127.0.0.1:1/mcp/x', enabled: true } })
-    expect(c['agent']).toEqual({ tucano: { mode: 'primary', prompt: 'Você é a Iris.' } })
+    // The `title` agent is off: a second model call per turn, for a session the app deletes.
+    expect(c['agent']).toEqual({ tucano: { mode: 'primary', prompt: 'Você é a Iris.' }, title: { disable: true } })
     expect(c['provider']).toEqual({ acme: {} })
     expect(opencodeArgs({ model: 'openai/gpt-5.6-luna' })).toEqual(['run', '--print-logs', '--log-level', 'ERROR', '--pure', '--format', 'json', '--agent', 'tucano', '-m', 'openai/gpt-5.6-luna'])
   })

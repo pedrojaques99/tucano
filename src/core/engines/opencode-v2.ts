@@ -24,7 +24,8 @@ export function opencodeV2Config(turn: Pick<Turn, 'system' | 'mcpUrl' | 'web'>, 
     snapshots: false,
     mcp: turn.mcpUrl ? { servers: { [GATEWAY_NAME]: { type: 'remote', url: turn.mcpUrl, disabled: false } } } : {},
     tools: { '*': false, [`${GATEWAY_NAME}_*`]: true, webfetch: !!turn.web, websearch: !!turn.web },
-    agents: { tucano: { system: turn.system } }
+    // No `title` call: each turn is a new session the app deletes after (see opencodeConfig).
+    agents: { tucano: { system: turn.system }, title: { disabled: true } }
   }
 }
 

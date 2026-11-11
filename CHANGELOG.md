@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **An approval's Refuse button stays on screen on a phone.** The approval card put Approve, Approve and always allow, and Refuse on one line that didn't wrap, so at phone width (where server mode sends people to approve) Refuse was cut off past the edge and the conversation scrolled sideways. The buttons now wrap to a second line.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

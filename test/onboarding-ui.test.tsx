@@ -112,6 +112,7 @@ describe('the first run', () => {
   it('with nothing set up: ChatGPT and Claude, set up here, or what to subscribe to; the escape hatch stays', async () => {
     await render(<Intro />)
     expect(text()).toContain('Seu time de IA')
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     expect(text()).toContain('Conectar a IA')
     expect(text()).toContain('O login é feito no site deles. O Tucano nunca vê a sua senha.')
@@ -131,6 +132,7 @@ describe('the first run', () => {
   it('found ready: tested with a real reply, tools and skills to bring, the models picked; three clicks to the agent', async () => {
     fake = state({ settings: { engines: engines({ claude: { installed: true, loggedIn: true, route: 'plan', account: 'Plano Claude Max' } }) } })
     await render(<Intro />)
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await tick()
     expect(text()).toContain('Achei 1 pronto pra usar')
@@ -144,10 +146,10 @@ describe('the first run', () => {
     expect(text()).toContain('Modelos dos bastidores: Haiku pra escolher quem responde e pra memória.')
     // "Trocar": the two jobs as cards, each with its model and how quick it is, opening the app's Select.
     await click(/^Trocar$/)
-    expect([...document.querySelectorAll('.intro-job__title')].map((x) => x.textContent)).toEqual(['Escolhe quem responde', 'Cuida da memória'])
-    expect([...document.querySelectorAll('.intro-job b')].map((x) => x.textContent)).toEqual(['Haiku', 'Haiku'])
-    expect([...document.querySelectorAll('.intro-job__tag')].map((x) => x.textContent)).toEqual(['rápido', 'rápido'])
-    expect(document.querySelectorAll('.intro-job .select__trigger')).toHaveLength(2)
+    expect([...document.querySelectorAll('.job-card__title')].map((x) => x.textContent)).toEqual(['Escolhe quem responde', 'Cuida da memória'])
+    expect([...document.querySelectorAll('.job-card b')].map((x) => x.textContent)).toEqual(['Haiku', 'Haiku'])
+    expect([...document.querySelectorAll('.job-card__tag')].map((x) => x.textContent)).toEqual(['rápido', 'rápido'])
+    expect(document.querySelectorAll('.job-card .select__trigger')).toHaveLength(2)
     expect(text()).not.toMatch(/\bMCP\b/)
     await click(/^Continuar$/)
     expect(store.importHarnessMcp).toHaveBeenCalledWith('claude:linear')
@@ -178,6 +180,7 @@ describe('the first run', () => {
     vi.mocked(store.testEngine).mockImplementation(async (m: string) => (m.startsWith('pi') ? { ok: false, message: expired } : { ok: true, seconds: 1.2, message: 'ok' }))
     fake = state({ settings: { engines: engines({ claude: { installed: true, loggedIn: true, route: 'plan', account: 'Plano Claude Max' }, pi: { installed: true, loggedIn: true, route: 'providers', account: 'Anthropic' } }) } })
     await render(<Intro />)
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await tick()
     await tick()
@@ -202,6 +205,7 @@ describe('the first run', () => {
   it('found ready: what comes along can be left out one by one, under "ver qual"', async () => {
     fake = state({ settings: { engines: engines({ claude: { installed: true, loggedIn: true, route: 'plan', account: 'Plano Claude Max' } }) } })
     await render(<Intro />)
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await tick()
     await click(/^ver qual$/)
@@ -235,6 +239,7 @@ describe('the first run', () => {
   it("makes the agent from the person's own words", async () => {
     fake = state({ settings: { engines: engines({ codex: { installed: true, loggedIn: true, route: 'plan' } }) } })
     await render(<Intro />)
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await click(/^Continuar$/)
     const input = document.querySelector<HTMLInputElement>('#intro-say')!
@@ -248,6 +253,7 @@ describe('the first run', () => {
   it('"Prefiro configurar do zero" opens the detailed form', async () => {
     fake = state({ settings: { engines: engines({ claude: { installed: true, loggedIn: true, route: 'plan' } }) } })
     await render(<Intro />)
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await click(/^Continuar$/)
     await click(/Prefiro configurar do zero/)
@@ -264,6 +270,7 @@ describe('how far the agent goes on its own', () => {
         <Dialogs />
       </>
     )
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await click(/^Continuar$/)
     await click(/Organizar minha semana/)
@@ -328,6 +335,7 @@ describe('how far the agent goes on its own', () => {
         <Dialogs />
       </>
     )
+    await click(/Sou novo com agentes de IA/)
     await click(/^Começar$/)
     await click(/^Continuar$/)
     await click(/Prefiro configurar do zero/)

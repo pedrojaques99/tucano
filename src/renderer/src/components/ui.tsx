@@ -151,9 +151,51 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }): Re
 
 // The Tuca wears the app's own toucan: he belongs to the app, not to the team.
 // busy: his lower beak goes while he works; happy: one squint when he's done.
-export function TucaMark({ size = 32, busy, happy }: { size?: number; busy?: boolean; happy?: boolean }): ReactNode {
+// The toucan alive, on the first run only: the pupil follows the pointer inside the eye, and the eye
+// blinks now and then. Nothing moves with "Reduzir movimento" on. Works on any svg holding a
+// `.tuca__eye` group with its white `circle` first and a `.tuca__pupil` circle.
+export function useLiveEye(ref: { current: SVGSVGElement | null }, on = true): void {
+  useEffect(() => {
+    const svg = ref.current
+    if (!on || !svg || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const eye = svg.querySelector<SVGGElement>('.tuca__eye')
+    const white = eye?.querySelector<SVGCircleElement>('circle')
+    const pupil = svg.querySelector<SVGCircleElement>('.tuca__pupil')
+    if (!eye || !white || !pupil) return
+    const cx = white.cx.baseVal.value
+    const cy = white.cy.baseVal.value
+    const room = white.r.baseVal.value - pupil.r.baseVal.value - 1
+    const look = (e: PointerEvent): void => {
+      // The eye's own space: right at any scale, inside any transformed group.
+      const m = white.getScreenCTM()
+      if (!m) return
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse())
+      const dx = p.x - cx
+      const dy = p.y - cy
+      const d = Math.hypot(dx, dy) || 1
+      const k = Math.min(room, d / 6) / d
+      pupil.style.transform = `translate(${dx * k}px, ${dy * k}px)`
+    }
+    let t: ReturnType<typeof setTimeout>
+    const blink = (): void => {
+      eye.classList.add('is-blinking')
+      setTimeout(() => eye.classList.remove('is-blinking'), 160)
+      t = setTimeout(blink, 2800 + Math.random() * 3600)
+    }
+    t = setTimeout(blink, 1600 + Math.random() * 2000)
+    window.addEventListener('pointermove', look)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('pointermove', look)
+    }
+  }, [ref, on])
+}
+
+export function TucaMark({ size = 32, busy, happy, live }: { size?: number; busy?: boolean; happy?: boolean; live?: boolean }): ReactNode {
+  const svg = useRef<SVGSVGElement>(null)
+  useLiveEye(svg, !!live)
   return (
-    <svg className={`avatar avatar--tuca ${busy ? 'is-busy' : ''} ${happy ? 'is-happy' : ''}`} width={size} height={size} viewBox="0 0 100 100" aria-label="Tuca">
+    <svg ref={svg} className={`avatar avatar--tuca ${busy ? 'is-busy' : ''} ${happy ? 'is-happy' : ''}`} width={size} height={size} viewBox="0 0 100 100" aria-label="Tuca">
       <defs>
         <clipPath id="tuca-clip">
           <rect width="100" height="100" rx="28" />
@@ -164,7 +206,7 @@ export function TucaMark({ size = 32, busy, happy }: { size?: number; busy?: boo
         <circle cx="27" cy="73" r="48" fill="#121212" />
         <g className="tuca__eye">
           <circle cx="38" cy="47" r="14" fill="#fff" />
-          <circle cx="43" cy="47" r="5.5" fill="#121212" />
+          <circle className="tuca__pupil" cx="43" cy="47" r="5.5" fill="#121212" />
         </g>
         <path className="tuca__jaw" d="M53 57 L95 57 Q86 70 53 71 Z" fill="#E5531F" />
         <path d="M53 24 Q84 25 93 44 L96 57 L53 57 Z" fill="#FF8C24" />
@@ -384,5 +426,14 @@ export function EngineMark({ engine, size = 44 }: { engine: EngineId; size?: num
         ENGINES[engine].label[0]
       )}
     </span>
+  )
+}
+
+// The way back on a step-by-step screen: an icon, always at the top left, before the progress dots.
+export function BackButton({ onClick }: { onClick: () => void }): ReactNode {
+  return (
+    <button className="back-btn" onClick={onClick} aria-label={L('Voltar', 'Back')} title={L('Voltar', 'Back')}>
+      <Icon name="back" size={16} />
+    </button>
   )
 }

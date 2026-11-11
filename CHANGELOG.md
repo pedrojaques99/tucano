@@ -55,6 +55,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 - **A message in a channel that answers in threads opens its thread.** There, each message you write in the channel starts a thread of its own, where the answers go, and you had to find its link under the message to follow them. Now the thread opens on the side as soon as your message is sent (full screen on a phone). A reply written in a thread, a channel that answers in the conversation, or a message from another of your devices leaves the panel as it was. Thanks, b7s! (#347)
 
 - **Your own memories are named "You" on the Memory page.** The tab read "About you" ("Sobre você"), which wrapped to two lines once a few agents had notes of their own and the tab strip got crowded. It now reads "You" ("Você"), and so does the heading inside it. Only the name changed: the memories and where they're kept are the same. Thanks, apoapostolov! (#296)
+### Fixed
+
+- **An OpenCode reply makes one model call, not two.** OpenCode named each new session with a second call (its title agent), and every turn is a new session whose title the app never shows: it only spent tokens on a paid provider, the free models' quota, and on an OpenAI-compatible agent endpoint a whole extra agent turn. It's off now, on OpenCode 1.x and 2.x.
 
 ## [0.2.27] - 2026-11-10
 

@@ -82,7 +82,7 @@ export function opencodeConfig(turn: Pick<Turn, 'system' | 'mcpUrl' | 'web'>, pr
     tools: { '*': false, read: true, [`${GATEWAY_NAME}_*`]: true, webfetch: !!turn.web, websearch: !!turn.web },
     permission: { read: 'allow', external_directory: 'deny' },
     // OpenCode names every new session with a second model call (its `title` agent). Each turn here
-    // is a new session the app deletes after, so that call only spent tokens: off.
+    // is a new session and the app never shows its title, so that call only spent tokens: off.
     agent: { tucano: { mode: 'primary', prompt: turn.system }, title: { disable: true } }
   }
 }

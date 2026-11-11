@@ -120,7 +120,7 @@ export const CATALOG: CatalogEntry[] = [
       )
     ]
   }),
-  e('azure-devops', 'Azure DevOps', '', 'dev', 'Work items, repositórios, PRs e pipelines', 'Work items, repositories, PRs and pipelines', 'none', {
+  e('azure-devops', 'Azure DevOps', '', 'dev', 'Itens de trabalho, repositórios, PRs e pipelines', 'Work items, repositories, PRs and pipelines', 'none', {
     local: { command: 'npx', args: ['-y', '@azure-devops/mcp', '{organization}'] },
     fields: [
       {

@@ -146,7 +146,7 @@ export function Sheet({
       <div>
         {back && (
           <button className="text-btn sheet__back" onClick={back.onClick}>
-            ← {back.label}
+            <Icon name="back" size={14} /> {back.label}
           </button>
         )}
         <h1>{title}</h1>

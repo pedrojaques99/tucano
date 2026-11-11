@@ -1,5 +1,5 @@
 import { L, locale, type Lang } from '../../../shared/lang'
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   agentById,
   navigate,
@@ -1798,8 +1798,13 @@ function useTab(page: string, tabs: TabList): string {
 
 function Tabs({ page, tabs }: { page: string; tabs: TabList }): ReactNode {
   const active = useTab(page, tabs)
+  const row = useRef<HTMLDivElement>(null)
+  // On a phone the row scrolls sideways: keep the open tab in view, also when the page opens on it.
+  useEffect(() => {
+    row.current?.querySelector('.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
   return (
-    <div className="tabs" role="tablist">
+    <div ref={row} className="tabs" role="tablist">
       {tabs.map(([id, label]) => (
         <button key={id} role="tab" aria-selected={active === id} className={active === id ? 'is-active' : ''} onClick={() => setTab(page, id)}>
           {label}

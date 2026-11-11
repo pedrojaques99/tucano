@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **The tabs of Settings and of an agent's page scroll on a phone.** They sat in one row that couldn't scroll or wrap, so at phone width the last tab was cut off, a long label broke over two lines, and the whole page scrolled sideways. The tab row now scrolls sideways on its own and each label stays on one line.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

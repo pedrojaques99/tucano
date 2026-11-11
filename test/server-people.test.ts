@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { AUTH_CACHE_MS, Grants, invitePage, joinFields, notifyNote, personNotice, Signins, Streams, UNAUTHORIZED_TEXT, Viewers, type Stream, type Who } from '../src/server/people'
+import { AUTH_CACHE_MS, Grants, invitePage, joinFields, notifyNote, PAGE_STYLE, personNotice, Signins, Streams, UNAUTHORIZED_PAGE, Viewers, type Stream, type Who } from '../src/server/people'
 import type { Person } from '../src/shared/types'
 
 const bia: Person = { id: 'bia', name: 'Bia', role: 'member', about: '' }
@@ -143,8 +143,14 @@ describe('the invite page', () => {
     expect(joinFields('not json', 'application/json')).toEqual({ code: '', name: '' })
   })
 
-  it('a browser that is not signed in is told about invites', () => {
-    expect(UNAUTHORIZED_TEXT).toMatch(/invite/)
-    expect(UNAUTHORIZED_TEXT).toMatch(/convite/)
+  it('a browser that is not signed in gets a page it can read on a phone, in both languages', () => {
+    expect(UNAUTHORIZED_PAGE).toMatch(/^<!doctype html>/)
+    expect(UNAUTHORIZED_PAGE).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">')
+    expect(UNAUTHORIZED_PAGE).toContain(PAGE_STYLE)
+    expect(UNAUTHORIZED_PAGE).toMatch(/invite/)
+    expect(UNAUTHORIZED_PAGE).toMatch(/convite/)
+    expect(UNAUTHORIZED_PAGE).toContain('<code>node out/main/server.js link</code>')
+    expect(UNAUTHORIZED_PAGE).not.toContain('`')
+    expect(UNAUTHORIZED_PAGE).not.toContain('<script')
   })
 })

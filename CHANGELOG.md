@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **Opening a server's Tucano without a link shows a readable page.** A browser that wasn't signed in got plain text with no viewport, so on a phone it was tiny and showed the Markdown backticks around the command. It's now a page like the server's others (the invite, the no-access one), in Portuguese and English, on the system's light or dark theme.
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

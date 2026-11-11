@@ -4,6 +4,10 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **Small fixes around the window.** An empty channel showed a spark that looks like a loading spinner over "Nothing here yet"; it shows the channel's # now (a speech bubble in a DM). "Buscar skills existentes" no longer breaks over two lines on the Skills page. The back links of a page and of Memory's review use the app's arrow icon instead of a ← typed into the text. Azure DevOps reads "Itens de trabalho" in Portuguese, not "Work items".
+
 ## [0.2.27] - 2026-11-10
 
 > **Em português:**

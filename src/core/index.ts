@@ -2353,10 +2353,11 @@ const api: Handlers = {
   removeAccount: ({ id }) => {
     db.setSettings({ accounts: savedAccounts().filter((a) => a.id !== id) })
     accountLogins.delete(id)
-    for (const agent of db.agents().filter((x) => x.accountId === id || x.fallbackAccountId === id)) {
+    for (const agent of db.agents().filter((x) => x.accountId === id || x.fallbackAccountId === id || x.moreReserves?.some((r) => r.accountId === id))) {
       const rest = { ...agent }
       if (rest.accountId === id) delete rest.accountId
       if (rest.fallbackAccountId === id) delete rest.fallbackAccountId
+      if (rest.moreReserves) rest.moreReserves = rest.moreReserves.map(({ accountId, ...r }) => (accountId === id ? r : { ...r, accountId }))
       db.saveAgent(rest)
       emit({ type: 'agent', agent: db.agent(agent.id)! })
     }

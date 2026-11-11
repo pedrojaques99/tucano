@@ -55,6 +55,14 @@ export interface EngineStatus {
 // The agents of the team: not archived, and not the Tuca, who belongs to the app.
 export const isTeam = (a: Pick<Agent, 'archived' | 'kind'>): boolean => !a.archived && a.kind !== 'tuca'
 
+// A reserve after the agent's first one: a model and, optionally, one of settings.accounts of its harness.
+export interface Reserve {
+  modelId: string
+  accountId?: string
+}
+// Reserves after the first: with it, four ways to keep answering (two logins of one harness, then two others).
+export const MAX_MORE_RESERVES = 3
+
 export interface Agent {
   id: string
   name: string
@@ -73,6 +81,9 @@ export interface Agent {
   // The login the reserve runs on: one of settings.accounts, of the reserve's harness; unset: that harness's usual login.
   // With it, the reserve can be the same model on another account, when the main account's limit is out.
   fallbackAccountId?: string
+  // More reserves after that one, in order (at most MAX_MORE_RESERVES): when the reserve is out too, the reply
+  // goes on with the next one that is ready. Each runs on its own login, like the first.
+  moreReserves?: Reserve[]
   accountId?: string // one of settings.accounts, for its harness; unset: the harness's own login
   effort: Effort
   limit: number // tokens per month

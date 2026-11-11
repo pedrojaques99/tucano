@@ -49,6 +49,8 @@ import {
   skillApplies,
   modelInfo,
   MODELS,
+  MAX_MORE_RESERVES,
+  type Reserve,
   type Agent,
   type AgentColor,
   type Message,
@@ -1843,7 +1845,7 @@ function ReserveModel({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
             )}
           </p>
         </div>
-        <Toggle on={on} onChange={(v) => patch(v ? first() : { fallbackModelId: undefined, fallbackAccountId: undefined })} />
+        <Toggle on={on} onChange={(v) => patch(v ? first() : { fallbackModelId: undefined, fallbackAccountId: undefined, moreReserves: undefined })} />
       </div>
       {on && (
         <ModelPicker
@@ -1874,7 +1876,60 @@ function ReserveModel({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent
           {reserveAccounts.length > 0 ? L(' Escolha outra conta em “Conta da reserva”.', ' Pick another one under “Reserve account”.') : ''}
         </p>
       )}
+      {on && <MoreReserves draft={draft} patch={patch} />}
     </div>
+  )
+}
+
+// Reserves after the first, in order: when the reserve is out too, the reply goes on with the next one that is
+// ready (two logins of Claude Code, then Antigravity, then OpenCode, say). Each one is tried once per reply.
+function MoreReserves({ draft, patch }: { draft: Agent; patch: (p: Partial<Agent>) => void }): ReactNode {
+  const usable = useStore((s) => usableEngines(s.settings))
+  const accounts = useStore((s) => s.settings.accounts) ?? []
+  const list = draft.moreReserves ?? []
+  const set = (next: Reserve[]): void => patch({ moreReserves: next.length ? next : undefined })
+  const change = (i: number, r: Reserve): void => set(list.map((x, j) => (j === i ? r : x)))
+  // A new one starts on a harness not in the chain yet, when there is one: the same subscription would be out too.
+  const add = (): void => {
+    const taken = new Set([draft.modelId, draft.fallbackModelId, ...list.map((r) => r.modelId)].map((m) => (m ? modelInfo(m)?.engine : undefined)))
+    const engine = usable.find((e) => !taken.has(e)) ?? usable[0]
+    set([...list, { modelId: MODELS.find((m) => m.engine === engine)?.id ?? draft.fallbackModelId ?? draft.modelId }])
+  }
+  return (
+    <>
+      {list.map((r, i) => {
+        const model = modelInfo(r.modelId)
+        const own = accounts.filter((a) => a.engine === model?.engine)
+        const account = own.find((a) => a.id === r.accountId)
+        return (
+          <div key={i} className="field">
+            <span className="field__label">
+              {L(`Reserva ${i + 2}`, `Reserve ${i + 2}`)}
+              <button className="btn btn--sm btn--ghost" title={L('Tirar esta reserva', 'Remove this reserve')} onClick={() => set(list.filter((_, j) => j !== i))}>
+                <Icon name="x" size={11} />
+              </button>
+            </span>
+            <ModelPicker value={r.modelId} onChange={(modelId) => change(i, { modelId, ...(modelInfo(modelId)?.engine === model?.engine && r.accountId ? { accountId: r.accountId } : {}) })} />
+            {model && own.length > 0 && (
+              <Select
+                value={account?.id ?? null}
+                onChange={(v) => change(i, { modelId: r.modelId, ...(v ? { accountId: v } : {}) })}
+                options={[
+                  { value: '', label: L(`A de sempre do ${ENGINES[model.engine].label}`, `${ENGINES[model.engine].label}’s usual one`) },
+                  ...own.map((a) => ({ value: a.id, label: a.name + (a.loggedIn ? '' : L(' (falta entrar)', ' (not signed in)')) }))
+                ]}
+                placeholder={L(`A de sempre do ${ENGINES[model.engine].label}`, `${ENGINES[model.engine].label}’s usual one`)}
+              />
+            )}
+          </div>
+        )
+      })}
+      {list.length < MAX_MORE_RESERVES && (
+        <button className="btn btn--sm btn--ghost" onClick={add}>
+          <Icon name="plus" size={14} /> {L('Outra reserva, se esta também acabar', 'Another reserve, if this one runs out too')}
+        </button>
+      )}
+    </>
   )
 }
 

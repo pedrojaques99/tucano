@@ -202,6 +202,5 @@ export function joinFields(body: string, contentType: string | undefined): { cod
 // What a removed person's browser reads, instead of everything: nothing about the Tucano itself.
 export const NO_ACCESS_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tucano</title><style>${PAGE_STYLE}</style><main><h2>Você não tem mais acesso a este Tucano. · You no longer have access to this Tucano.</h2><p>Se foi engano, peça um novo convite a quem cuida dele. · If that's a mistake, ask whoever runs it for a new invite.</p></main>`
 
-// What a browser that isn't signed in reads.
-export const UNAUTHORIZED_TEXT =
-  'Tucano: open the link from `node out/main/server.js link`, or the invite link someone sent you.\nTucano: abra o link que o `node out/main/server.js link` mostra, ou o link de convite que te mandaram.'
+// What a browser that isn't signed in reads: a page like the others (it's often a phone), not plain text.
+export const UNAUTHORIZED_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Tucano</title><style>${PAGE_STYLE}</style><main><h2>Este Tucano pede um link de acesso. · This Tucano needs a sign-in link.</h2><p>Abra o link que o <code>node out/main/server.js link</code> mostra no servidor, ou o link de convite que te mandaram. · Open the link that <code>node out/main/server.js link</code> shows on the server, or the invite link someone sent you.</p></main>`

@@ -148,7 +148,8 @@ export function claudeParser(): Parser {
         const w = ((ev['rate_limit_info'] as Record<string, unknown> | undefined)?.['unifiedWindows'] ?? {}) as Record<string, Record<string, unknown> | undefined>
         const win = (k: string): { utilization: number; resetsAt: number } | undefined =>
           typeof w[k]?.['utilization'] === 'number' ? { utilization: w[k]!['utilization'] as number, resetsAt: num(w[k]!['resetsAt']) * 1000 } : undefined
-        const quota = { fiveHour: win('five_hour'), sevenDay: win('seven_day'), at: Date.now() }
+        const others = Object.keys(w).filter((k) => k !== 'five_hour' && k !== 'seven_day').flatMap((k) => { const x = win(k); return x ? [{ key: k, ...x }] : [] })
+        const quota = { fiveHour: win('five_hour'), sevenDay: win('seven_day'), ...(others.length ? { others } : {}), at: Date.now() }
         if (quota.fiveHour || quota.sevenDay) out.push({ type: 'quota', quota })
       } else if (ev['type'] === 'result') {
         finished = true

@@ -96,6 +96,7 @@ function Skills({ admin }: { admin: boolean }): ReactNode {
 
   return (
     <Sheet
+      wide
       title="Skills"
       lede={L('Receitas que os agentes seguem pra um tipo de tarefa.', 'Recipes the agents follow for a kind of task.')}
       actions={
@@ -129,18 +130,7 @@ function Skills({ admin }: { admin: boolean }): ReactNode {
       ) : (
         <section className="read-group">
           <h2>{L('Em uso', 'In use')}</h2>
-          {active.map((k) => (
-            <button key={k.id} className="skill-line" onClick={() => setPlace({ kind: 'skill', id: k.id })}>
-              <span className="skill-line__body">
-                <strong>{k.name}</strong>
-                <span className="skill-line__desc">{k.description}</span>
-                <span className="skill-line__meta">
-                  <Who ids={k.agents} /> · {result(stats.find((x) => x.skillId === k.id))} · {from(k)}
-                </span>
-              </span>
-              <Icon name="chevron" size={14} />
-            </button>
-          ))}
+          <SkillTree skills={active} stats={stats} onOpen={(id) => setPlace({ kind: 'skill', id })} />
         </section>
       )}
 
@@ -182,6 +172,120 @@ function Skills({ admin }: { admin: boolean }): ReactNode {
       {adding && <AddFromTerminal onClose={() => setAdding(false)} />}
       {form}
     </Sheet>
+  )
+}
+
+// ---------- the tree ----------
+
+// The folder a skill lives in, from where its SKILL.md is: a plugin's name, the person's own skills,
+// Codex's, or the ones written here (no file).
+export function folderOf(source: string | undefined): { id: string; label: string } {
+  if (!source) return { id: 'here', label: L('Criadas aqui', 'Made here') }
+  const parts = source.replace(/\\/g, '/').split('/').filter(Boolean)
+  if (parts.includes('.codex')) return { id: 'codex', label: 'Codex' }
+  const at = parts.lastIndexOf('skills')
+  if (parts.includes('plugins') && at > 0) {
+    // The plugin's own folder: the nearest one above "skills" that isn't a version or a hash.
+    for (let i = at - 1; i > parts.indexOf('plugins'); i--) {
+      const seg = parts[i]!
+      if (!/^v?\d+(\.\d+)*$/.test(seg) && !/^[0-9a-f]{7,}$/i.test(seg)) return { id: `plugin:${seg}`, label: seg }
+    }
+  }
+  return { id: 'mine', label: L('Suas skills', 'Your skills') }
+}
+
+// Folders in reading order: the person's first, then the plugins by name, then Codex, then what's made here.
+const RANK = (id: string): number => (id === 'mine' ? 0 : id.startsWith('plugin:') ? 1 : id === 'codex' ? 2 : 3)
+
+function FolderMark({ open }: { open: boolean }): ReactNode {
+  return (
+    <svg className="skill-tree__folder" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
+      {open ? <path d="M2.5 13.5V4.25c0-.41.34-.75.75-.75h3.4l1.6 1.6h5.5c.41 0 .75.34.75.75v1.4M2.5 13.5l1.7-5.2c.1-.3.38-.5.7-.5h10.1c.5 0 .86.5.7.97l-1.6 4.73H2.5z" /> : <path d="M2.5 13.75V4.25c0-.41.34-.75.75-.75h3.4l1.6 1.6h6.5c.41 0 .75.34.75.75v7.9c0 .41-.34.75-.75.75H3.25a.75.75 0 0 1-.75-.75z" />}
+    </svg>
+  )
+}
+
+function FileMark(): ReactNode {
+  return (
+    <svg className="skill-tree__file" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" aria-hidden>
+      <path d="M4 1.75h5.25L12.5 5v9.25H4z" />
+      <path d="M9.25 1.75V5h3.25" />
+    </svg>
+  )
+}
+
+// The skills in use as files in folders; the one picked shows its recipe beside the tree.
+function SkillTree({ skills, stats, onOpen }: { skills: Skill[]; stats: SkillReport[]; onOpen: (id: string) => void }): ReactNode {
+  const groups = new Map<string, { label: string; skills: Skill[] }>()
+  for (const k of skills) {
+    const f = folderOf(k.source)
+    const g = groups.get(f.id) ?? groups.set(f.id, { label: f.label, skills: [] }).get(f.id)!
+    g.skills.push(k)
+  }
+  const folders = [...groups.entries()].sort(([a, x], [b, y]) => RANK(a) - RANK(b) || x.label.localeCompare(y.label))
+  for (const [, g] of folders) g.skills.sort((a, b) => a.name.localeCompare(b.name))
+  // A few folders open at first; many, all closed so the tree reads as a table of contents.
+  const [closed, setClosed] = useState<Set<string>>(() => new Set(folders.length > 3 ? folders.map(([id]) => id) : []))
+  const [picked, setPicked] = useState<string | undefined>(undefined)
+  const shown = skills.find((k) => k.id === picked)
+  const toggle = (id: string): void => setClosed((c) => { const n = new Set(c); n.has(id) ? n.delete(id) : n.add(id); return n })
+  return (
+    <div className="skill-tree">
+      <ul className="skill-tree__list" role="tree" aria-label={L('Skills em uso', 'Skills in use')}>
+        {folders.map(([id, g]) => {
+          const open = !closed.has(id)
+          return (
+            <li key={id} role="treeitem" aria-expanded={open} className="skill-tree__node">
+              <button className="skill-tree__row skill-tree__row--folder" onClick={() => toggle(id)}>
+                <Icon name="chevron" size={12} />
+                <FolderMark open={open} />
+                <span className="skill-tree__name">{g.label}</span>
+                <span className="skill-tree__count">{g.skills.length}</span>
+              </button>
+              {open && (
+                <ul role="group" className="skill-tree__files">
+                  {g.skills.map((k) => (
+                    <li key={k.id} role="treeitem" aria-selected={picked === k.id}>
+                      <button className={`skill-tree__row skill-tree__row--file ${picked === k.id ? 'is-on' : ''}`} onClick={() => setPicked(k.id)} onDoubleClick={() => onOpen(k.id)}>
+                        <FileMark />
+                        <span className="skill-tree__name">{k.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <aside className="skill-tree__preview" aria-live="polite">
+        {shown ? (
+          <>
+            <div className="skill-tree__head">
+              <div>
+                <h3>{shown.name}</h3>
+                <span className="skill-line__meta">
+                  <Who ids={shown.agents} /> · {result(stats.find((x) => x.skillId === shown.id))} · {from(shown)}
+                </span>
+              </div>
+              <button className="btn btn--sm" onClick={() => onOpen(shown.id)}>
+                {L('Abrir', 'Open')}
+              </button>
+            </div>
+            <p className="skill-tree__desc">{shown.description}</p>
+            {shown.body.trim() ? (
+              <article className="recipe skill-tree__recipe">
+                <Markdown urlTransform={safeUrl} remarkPlugins={[remarkGfm]}>{shown.body}</Markdown>
+              </article>
+            ) : (
+              <p className="read-empty">{L(`A receita é lida de ${shown.source} a cada uso.`, `The recipe is read from ${shown.source} on every use.`)}</p>
+            )}
+          </>
+        ) : (
+          <p className="skill-tree__empty">{L('Escolha uma skill pra ler a receita.', 'Pick a skill to read its recipe.')}</p>
+        )}
+      </aside>
+    </div>
   )
 }
 

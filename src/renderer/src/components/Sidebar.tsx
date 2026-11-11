@@ -38,6 +38,7 @@ import { call } from '../rpc'
 import { ContextMenu, confirmDialog, type MenuItem, type MenuState } from './Dialogs'
 import { FoldToggle, useFold } from './Fold'
 import { MissionsCard, useSidebarParts } from './Missions'
+import { UsageDock } from './UsageDock'
 import { UpdateNote } from './Update'
 import { WorkspaceSelector } from './Workspaces'
 import { AgentAvatar, Icon, MeAvatar, TucaMark, useJustEnded, type IconName } from './ui'
@@ -57,7 +58,7 @@ function NavItem({ view, icon, label, badge, fresh }: { view: View; icon: IconNa
           {badge}
         </span>
       ) : fresh ? (
-        <span className="nav-item__new">{L('NOVO', 'NEW')}</span>
+        <span className="nav-item__new" role="img" aria-label={L('novo', 'new')} />
       ) : null}
     </button>
   )
@@ -448,6 +449,7 @@ export function Sidebar(): ReactNode {
       <ContextMenu menu={menu} onClose={closeMenu} />
       <div className="sidebar__foot">
         <UpdateNote />
+        {admin && <UsageDock />}
         {admin && parts.shows('usage') && <NavItem view={{ kind: 'usage' }} icon="chart" label={L('Uso e limites', 'Usage and limits')} fresh={fresh('usage')} />}
         {parts.shows('connectors') && <NavItem view={{ kind: 'connectors' }} icon="plug" label={L('Conectores', 'Connectors')} fresh={fresh('connectors')} />}
         <NavItem view={{ kind: 'settings' }} icon="gear" label={L('Configurações', 'Settings')} />

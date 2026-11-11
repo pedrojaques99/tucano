@@ -97,14 +97,17 @@ export function MissionsCard(): ReactNode {
   const line = latest ? L(`Você liberou ${latest.unlockName}`, `You unlocked ${latest.unlockName}`) : next ? L(`Próxima: ${lower(next.title(name))}`, `Next: ${lower(next.title(name))}`) : L('Você conhece o Tucano inteiro', 'You know all of Tucano')
   return (
     <button className={`missions-card ${active ? 'is-active' : ''} ${latest ? 'is-new' : ''}`} data-coach="missions" onClick={() => navigate({ kind: 'missions' })}>
-      <span className="missions-ring" style={{ background: `conic-gradient(var(--m-accent) 0 ${(count / all.length) * 100}%, var(--m-track) ${(count / all.length) * 100}% 100%)` }} aria-hidden>
-        <span>
-          {count}/{all.length}
-        </span>
-      </span>
       <span className="missions-card__text">
-        <b>{L('Missões', 'Missions')}</b>
+        <span className="missions-card__head">
+          <b>{L('Missões', 'Missions')}</b>
+          <span className="missions-card__count" aria-hidden>
+            {count}/{all.length}
+          </span>
+        </span>
         <span>{line}</span>
+        <span className="missions-card__bar" aria-hidden>
+          <span style={{ width: `${(count / all.length) * 100}%` }} />
+        </span>
       </span>
       <span className="sr-only">{L(`${count} de ${all.length} feitas`, `${count} of ${all.length} done`)}</span>
     </button>

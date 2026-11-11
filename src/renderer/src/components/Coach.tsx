@@ -109,13 +109,13 @@ function place(mark: TourMark, b: Box, height: number): { style: CSSProperties; 
   if (mark === 'first') {
     const left = clamp(b.left + b.width - w - 30, 16, window.innerWidth - w - 16)
     const top = Math.max(16, b.top - height - 22)
-    return { style: { left, top, width: w }, arrow: { left: clamp(b.left + b.width - 70 - left, 24, w - 40), bottom: -9 } }
+    return { style: { left, top, width: w }, arrow: { left: clamp(b.left + b.width - 70 - left, 24, w - 40), bottom: -6 } }
   }
   const right = b.left + b.width + 22
   const side = right + w <= window.innerWidth - 16 ? right : Math.max(16, b.left - w - 22)
   const top = clamp(b.top + b.height / 2 - height / 2, 16, window.innerHeight - height - 16)
-  const arrowTop = clamp(b.top + b.height / 2 - top - 9, 18, height - 30)
-  return { style: { left: side, top, width: w }, arrow: side >= right ? { left: -9, top: arrowTop } : { right: -9, top: arrowTop } }
+  const arrowTop = clamp(b.top + b.height / 2 - top - 6, 18, height - 30)
+  return { style: { left: side, top, width: w }, arrow: side >= right ? { left: -6, top: arrowTop } : { right: -6, top: arrowTop } }
 }
 
 function Balloon({ mark, box, missions }: { mark: TourMark; box: Box; missions: boolean }): ReactNode {
@@ -148,7 +148,7 @@ function Balloon({ mark, box, missions }: { mark: TourMark; box: Box; missions: 
 
   const { style, arrow } = place(mark, box, height)
   const count = tourCount(onboarding, missions)
-  const kicker = mark === 'first' ? L('ÚLTIMO PASSO', 'LAST STEP') : L(`TOUR · ${count.at} DE ${count.of}`, `TOUR · ${count.at} OF ${count.of}`)
+  const kicker = mark === 'first' ? L('Último passo', 'Last step') : L(`Tour, ${count.at} de ${count.of}`, `Tour, ${count.at} of ${count.of}`)
   const text: Record<TourMark, { title: string; body: ReactNode; foot?: ReactNode }> = {
     first: {
       title: agent ? L(`Sua primeira mensagem pra ${agent.name}.`, `Your first message to ${agent.name}.`) : L('Sua primeira mensagem.', 'Your first message.'),
@@ -190,7 +190,7 @@ function Balloon({ mark, box, missions }: { mark: TourMark; box: Box; missions: 
       <div className="coach__hole" style={{ top: box.top - 6, left: box.left - 6, width: box.width + 12, height: box.height + 12 }} />
       <div ref={card} className={`coach__card coach__card--${mark}`} style={style} role="dialog" aria-modal="false" aria-labelledby={title}>
         <span className="coach__kicker">
-          {mark === 'first' && <TucaMark size={34} />}
+          {mark === 'first' && <TucaMark size={20} />}
           {kicker}
         </span>
         <b id={title} className="coach__title">

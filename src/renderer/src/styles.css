@@ -174,7 +174,7 @@ input:focus,
 textarea:focus,
 select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 /* The keyboard's focus wears the fields' ring, on buttons and links too. */
 button:focus-visible,
@@ -182,7 +182,7 @@ a:focus-visible,
 [role='button']:focus-visible,
 [role='switch']:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 2px var(--accent-soft); /* stroke-ok: focus, 1px edge + soft halo */
 }
 textarea {
   resize: vertical;
@@ -259,7 +259,7 @@ h3 {
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 10px;
-  border: 3px solid transparent;
+  border: 3px solid transparent; /* stroke-ok: scrollbar thumb inset, not a line */
   background-clip: content-box;
 }
 ::-webkit-scrollbar-corner {
@@ -796,8 +796,20 @@ h3 {
     transform: rotate(7deg);
   }
 }
-.avatar--tuca .tuca__eye {
-  transform-origin: 38px 47px;
+.avatar--tuca .tuca__eye,
+.tuca-hero .tuca__eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* Alive (first run): the pupil eases toward the pointer, and the eye closes for a blink. */
+.tuca__pupil {
+  transition: transform 140ms var(--ease-out);
+}
+.tuca__eye {
+  transition: transform 80ms var(--ease-in);
+}
+.tuca__eye.is-blinking {
+  transform: scaleY(0.08);
 }
 .avatar--tuca.is-happy .tuca__eye {
   --happy-y: 0;
@@ -991,7 +1003,7 @@ h3 {
   border-color: color-mix(in srgb, var(--danger) 88%, #000);
 }
 .btn--danger:focus-visible {
-  outline: 2px solid var(--danger);
+  outline: 2px solid var(--danger); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 2px;
 }
 .btn--ghost {
@@ -1430,7 +1442,7 @@ h3 {
   list-style: none;
   margin: 4px 0 6px 3px;
   padding: 2px 0 2px 14px;
-  border-left: 2px solid var(--border);
+  border-left: 1px solid var(--border);
   animation: rise var(--dur-base) var(--ease-out) both;
 }
 .step {
@@ -1535,7 +1547,7 @@ h3 {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid var(--border-strong);
+  border: 2px solid var(--border-strong); /* stroke-ok: spinner */
   border-top-color: var(--accent);
   animation: spin 0.7s linear infinite;
 }
@@ -1603,7 +1615,7 @@ h3 {
   margin: 10px 0 4px;
   max-width: 560px;
   border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--warn);
+  border-left: 1px solid color-mix(in srgb, var(--warn) 60%, var(--border));
   border-radius: var(--radius-lg);
   padding: 12px 14px;
   background: var(--panel);
@@ -1762,7 +1774,7 @@ h3 {
 }
 .composer:focus-within {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow), 0 0 0 4px var(--accent-soft);
+  box-shadow: var(--shadow), 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo */
 }
 .composer textarea {
   border: 0;
@@ -1983,7 +1995,7 @@ h3 {
   box-shadow: inset 0 0 0 1px var(--text-3);
 }
 .look.is-active {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .swatch {
   width: 26px;
@@ -1994,7 +2006,7 @@ h3 {
   transition: box-shadow var(--dur-fast) var(--ease-out);
 }
 .swatch.is-active {
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--agent);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--agent); /* stroke-ok: picked color swatch: the ring is the selection */
 }
 .checks {
   display: flex;
@@ -2541,7 +2553,7 @@ h3 {
 .ask-option:focus-visible,
 .ask-option:focus-within {
   outline: none;
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .ask-option.is-on {
   background: var(--accent-soft);
@@ -2681,7 +2693,7 @@ h3 {
 }
 .ask-review__row:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 2px var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .ask-review__row .icon {
   color: var(--text-3);
@@ -2738,7 +2750,7 @@ h3 {
   display: grid;
   gap: 1px;
   padding-left: 10px;
-  border-left: 2px solid var(--border);
+  border-left: 1px solid var(--border);
 }
 .ask-summary dt {
   font-size: 12px;
@@ -3453,7 +3465,7 @@ body.is-resizing webview {
 }
 .screen--driven {
   cursor: pointer;
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: -2px;
 }
 .screen--driven:focus-visible {
@@ -3498,7 +3510,7 @@ body.is-resizing webview {
   top: -2px;
   fill: var(--agent);
   stroke: #fff;
-  stroke-width: 1.6;
+  stroke-width: 1.6; /* stroke-ok: agent cursor glyph */
   stroke-linejoin: round;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
@@ -3522,7 +3534,7 @@ body.is-resizing webview {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 2px solid var(--agent);
+  border: 2px solid var(--agent); /* stroke-ok: click ripple, transient */
   opacity: 0;
   animation: screen-ripple var(--dur-data) var(--ease-out) var(--dur-slow);
 }
@@ -4380,7 +4392,7 @@ table.csv th {
 }
 .onb-template.is-active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .onb-template__icon {
   display: grid;
@@ -4543,7 +4555,7 @@ table.csv th {
 .onb-task.is-active {
   border-color: var(--accent);
   color: var(--text);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .onb-composer {
   display: flex;
@@ -4553,7 +4565,7 @@ table.csv th {
   border-radius: 12px;
   background: var(--panel);
   padding: 10px 12px;
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .onb-composer__at {
   color: var(--accent);
@@ -4784,7 +4796,7 @@ table.csv th {
 }
 .onb-mode.is-active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .gateway-model select {
   flex: 0 0 150px;
@@ -4794,47 +4806,45 @@ table.csv th {
 .harnesses {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 24px;
 }
 .harness {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  padding: 11px 14px;
-}
-.harness.is-picked {
-  border-color: var(--accent);
+  padding: 10px 2px;
 }
 .harness.is-soon {
-  background: transparent;
+  opacity: 0.7;
 }
 .harness__head {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-height: 32px;
 }
 .harness__head strong {
   display: block;
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 600;
 }
-.harness__check:not(:disabled) + .harness__name {
+.harness__name[for] {
   cursor: pointer;
 }
 .harness__account {
   display: block;
-  font-size: 12.5px;
-  color: var(--text-2);
+  font-size: 12px;
+  color: var(--text-3);
 }
 .harness__check {
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  border: 1.5px solid var(--border-strong, var(--border));
-  background: var(--bg);
-  color: #fff;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--accent-text);
+  cursor: pointer;
 }
 .harness__check.is-on {
   background: var(--accent);
@@ -4842,15 +4852,16 @@ table.csv th {
 }
 .harness__check:disabled {
   opacity: 0.4;
+  cursor: default;
 }
 .harness__body {
-  margin: 10px 0 0 32px;
+  margin: 8px 0 2px 70px;
 }
 .harness__cmd {
   display: block;
   margin-top: 4px;
   padding: 7px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--code-bg);
   font-size: 12.5px;
   overflow-wrap: anywhere;
@@ -5113,7 +5124,7 @@ table.csv th {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  border: 1.5px solid var(--border-strong);
+  border: 1px solid var(--border-strong);
   color: #fff;
 }
 .member.is-on .member__check {
@@ -5146,7 +5157,7 @@ table.csv th {
   white-space: nowrap;
   font-size: 13.5px;
   color: var(--text-2);
-  border-bottom: 2px solid transparent;
+  border-bottom: 2px solid transparent; /* stroke-ok: active tab indicator */
   transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .tabs button:hover {
@@ -5339,7 +5350,7 @@ kbd {
   align-items: center;
   gap: 6px;
   padding: 26px 40px;
-  border: 2px dashed var(--accent);
+  border: 2px dashed var(--accent); /* stroke-ok: drop target while dragging */
   border-radius: var(--radius-lg);
   background: var(--panel);
   color: var(--accent);
@@ -5667,7 +5678,7 @@ kbd {
   animation: none;
 }
 .usage-chart__day.is-today .usage-chart__stack {
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--accent-soft); /* stroke-ok: today marker on the usage chart */
 }
 @keyframes usage-grow {
   from {
@@ -5778,7 +5789,7 @@ kbd {
 }
 .usage-ring circle {
   fill: none;
-  stroke-width: 6;
+  stroke-width: 6; /* stroke-ok: chart ring */
 }
 .usage-ring__track {
   stroke: var(--border);
@@ -6115,7 +6126,7 @@ kbd {
   margin-bottom: -1px;
   padding: 0;
   border: 0;
-  border-bottom: 1.5px solid transparent;
+  border-bottom: 1.5px solid transparent; /* stroke-ok: active tab indicator */
   background: none;
   color: var(--text-3);
   font-size: 13.5px;
@@ -6229,7 +6240,7 @@ kbd {
   font-size: 13.5px !important;
   color: var(--text-3) !important;
   padding-left: 12px;
-  border-left: 2px solid var(--border);
+  border-left: 1px solid var(--border);
 }
 .read-line__meta {
   display: flex;
@@ -6360,7 +6371,7 @@ kbd {
   background: var(--hover);
 }
 .cal-people button.is-on {
-  box-shadow: 0 0 0 1.5px var(--text);
+  box-shadow: 0 0 0 1px var(--text-2);
 }
 .cal-people button.is-dim {
   opacity: 0.35;
@@ -6581,7 +6592,7 @@ kbd {
   }
 }
 .cal__ev.is-selected {
-  box-shadow: inset 2.5px 0 0 var(--agent), 0 0 0 2px var(--text);
+  box-shadow: inset 2px 0 0 var(--agent), 0 0 0 1px var(--text-2);
   z-index: 4;
 }
 .cal__ev.is-dim {
@@ -6592,7 +6603,7 @@ kbd {
   left: -1px;
   right: 0;
   height: 0;
-  border-top: 1.5px solid var(--accent);
+  border-top: 1.5px solid var(--accent); /* stroke-ok: calendar now line */
   z-index: 5;
   pointer-events: none;
 }
@@ -7838,7 +7849,7 @@ kbd {
 .wk-panel__close { position: sticky; top: 14px; float: right; margin: 14px 14px -44px 0; z-index: 2; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; border: 0; background: color-mix(in srgb, var(--panel) 80%, transparent); backdrop-filter: blur(6px); color: var(--text-3); cursor: pointer; }
 .wk-panel__close:hover { background: var(--hover); color: var(--text); }
 
-.wk-drop { position: absolute; inset: 12px; z-index: 5; display: grid; place-items: center; border-radius: 18px; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(4px); pointer-events: none; animation: rise var(--dur-fast) var(--ease-out) both; }
+.wk-drop { position: absolute; inset: 12px; z-index: 5; display: grid; place-items: center; border-radius: 18px; border: 2px dashed var(--accent); /* stroke-ok: drop target while dragging */ background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(4px); pointer-events: none; animation: rise var(--dur-fast) var(--ease-out) both; }
 .wk-drop div { display: grid; justify-items: center; gap: 8px; color: var(--accent); }
 .wk-drop b { font-size: 18px; color: var(--text); }
 .wk-drop small { color: var(--text-2); }
@@ -7855,7 +7866,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wk-who--curator { background: linear-gradient(135deg, var(--accent), #f2a65a); color: #fff; }
 .wk-badge-file { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: color-mix(in srgb, var(--k) 13%, transparent); color: color-mix(in srgb, var(--k) 85%, var(--text)); font: 800 9.5px var(--font); letter-spacing: 0.03em; }
 .wk-badge-file--icon { --k: var(--text-3); color: var(--text-2); background: var(--hover); }
-.wk-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; display: inline-block; animation: spin 0.8s linear infinite; vertical-align: -1px; }
+.wk-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; /* stroke-ok: spinner */ display: inline-block; animation: spin 0.8s linear infinite; vertical-align: -1px; }
 .wk-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* links in the text, and what they point to */
@@ -7876,22 +7887,22 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wk-canvas { position: absolute; inset: 0; cursor: grab; touch-action: none; user-select: none; background-image: radial-gradient(circle, color-mix(in srgb, var(--text-3) 32%, transparent) 1px, transparent 1.3px); }
 .wk-canvas.is-panning { cursor: grabbing; }
 .wk-canvas > svg { display: block; position: absolute; inset: 0; }
-.wk-canvas__edges line { stroke: color-mix(in srgb, var(--text-3) 45%, transparent); stroke-width: 1.3; transition: opacity var(--dur-enter) var(--ease-out), stroke var(--dur-enter) var(--ease-out); }
-.wk-canvas__edges line.is-hot { stroke: var(--accent); stroke-width: 2; }
+.wk-canvas__edges line { stroke: color-mix(in srgb, var(--text-3) 45%, transparent); stroke-width: 1; transition: opacity var(--dur-enter) var(--ease-out), stroke var(--dur-enter) var(--ease-out); }
+.wk-canvas__edges line.is-hot { stroke: var(--accent); stroke-width: 1.2; } /* stroke-ok: hovered edge on the map */
 .wk-canvas__edges line.is-dim { opacity: 0.18; }
 .wk-node { cursor: pointer; transition: opacity var(--dur-enter) var(--ease-out); animation: fade var(--dur-data) var(--ease-out) both; animation-delay: calc(var(--i) * 22ms); }
 .wk-node__hit { fill: transparent; }
-.wk-node__dot { fill: var(--k); stroke: var(--bg); stroke-width: 2.5; }
+.wk-node__dot { fill: var(--k); stroke: var(--bg); stroke-width: 2.5; /* stroke-ok: node halo cut out of the edges */ }
 .wk-node__halo { fill: var(--k); opacity: 0; transition: opacity var(--dur-base) var(--ease-out); }
 .wk-node:hover .wk-node__halo, .wk-node.is-lit .wk-node__halo { opacity: 0.16; }
 .wk-node.is-sel .wk-node__halo { opacity: 0.22; animation: wk-breathe 2.6s var(--ease-in-out) infinite; }
 @keyframes wk-breathe { 50% { opacity: 0.08; } }
-.wk-node__ping { fill: none; stroke: var(--accent); stroke-width: 1.5; animation: wk-ping 2s var(--ease-out) infinite; transform-box: fill-box; transform-origin: center; }
+.wk-node__ping { fill: none; stroke: var(--accent); stroke-width: 1.5; animation: wk-ping /* stroke-ok: ping, transient */ 2s var(--ease-out) infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes wk-ping { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
 .wk-node text { font: 500 12px var(--font); fill: var(--text-2); paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; pointer-events: none; transition: fill var(--dur-base) var(--ease-out); }
 .wk-node.is-lit text, .wk-node.is-sel text { fill: var(--text); font-weight: 650; }
 .wk-node.is-dim { opacity: 0.2; }
-.wk-node.is-missing .wk-node__dot { fill: var(--bg); stroke: var(--text-3); stroke-dasharray: 2.5 2.5; stroke-width: 1.4; }
+.wk-node.is-missing .wk-node__dot { fill: var(--bg); stroke: var(--text-3); stroke-dasharray: 2.5 2.5; stroke-width: 1; }
 .wk-node.is-missing text { fill: var(--text-3); font-style: italic; }
 .wk-zoom { position: absolute; bottom: 16px; z-index: 2; display: flex; border-radius: 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--border), var(--shadow); overflow: hidden; transition: right var(--dur-slow) var(--ease-out); }
 .wk-zoom button { width: 32px; height: 30px; border: 0; background: none; color: var(--text-2); font: 500 16px var(--font); cursor: pointer; display: grid; place-items: center; }
@@ -7901,7 +7912,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wk-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 0 28px; text-align: center; }
 .wk-empty > * { max-width: 540px; }
 .wk-empty__art { width: 360px; max-width: 100%; overflow: visible; margin-bottom: 6px; }
-.wk-empty__art line { stroke: var(--border-strong); stroke-width: 1.4; stroke-dasharray: 3 4; }
+.wk-empty__art line { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 3 4; }
 .wk-empty__art circle { animation: wk-float 5s var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -0.8s); }
 @keyframes wk-float { 50% { transform: translateY(-5px); } }
 .wk-empty h2 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
@@ -7972,7 +7983,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wiki-diff { display: grid; gap: 3px; min-width: 0; position: relative; }
 .wiki-diff.is-folded { overflow: hidden; }
 .wiki-diff.is-folded::after { content: ''; position: absolute; inset: auto 0 0 0; height: 56px; background: linear-gradient(to bottom, transparent, var(--panel)); pointer-events: none; }
-.wiki-diff__old, .wiki-diff__new { min-width: 0; padding: 8px 13px 10px; border-radius: 9px; font-size: 13.5px; line-height: 1.55; border-left: 3px solid; overflow-wrap: anywhere; }
+.wiki-diff__old, .wiki-diff__new { min-width: 0; padding: 8px 13px 10px; border-radius: 9px; font-size: 13.5px; line-height: 1.55; border-left: 2px solid; overflow-wrap: anywhere; } /* stroke-ok: diff side marker, removed vs added */
 .wiki-diff__old { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 50%, transparent); color: var(--text-2); }
 .wiki-diff__old .md { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 .wiki-diff__new { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--text); }
@@ -7984,7 +7995,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wiki-diff .md > :last-child { margin-bottom: 0; }
 .wiki-diff .md ul, .wiki-diff .md ol { padding-left: 20px; margin: 0 0 8px; }
 .wiki-diff .md h1, .wiki-diff .md h2, .wiki-diff .md h3, .wiki-diff .md h4 { font-size: 14px; margin: 10px 0 4px; }
-.wiki-diff .md blockquote { margin: 0 0 8px; padding: 2px 12px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.wiki-diff .md blockquote { margin: 0 0 8px; padding: 2px 12px; border-left: 3px solid var(--border-strong); /* stroke-ok: markdown blockquote */ color: var(--text-2); }
 .wiki-diff .md pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 .wiki-diff .md table { display: block; max-width: 100%; overflow-x: auto; }
 .wiki-diff__more { justify-self: start; font-size: 12.5px; color: var(--accent); }
@@ -8003,7 +8014,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 
 .wk-add { display: grid; gap: 10px; }
 .wk-add__tile { display: grid; gap: 6px; align-content: start; padding: 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel); }
-.wk-add__tile--file { cursor: pointer; border-style: dashed; border-width: 1.5px; transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+.wk-add__tile--file { cursor: pointer; border-style: dashed; border-width: 1px; transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 .wk-add__tile--file:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
 .wk-add__tile b { font-size: 14px; margin-top: 4px; }
 .wk-add__tile small { color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
@@ -8038,7 +8049,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 .wk-doc table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 0.6em 0 1em; }
 .wk-doc th, .wk-doc td { border-bottom: 1px solid var(--border); padding: 7px 10px; text-align: left; }
 .wk-doc th { font-weight: 650; color: var(--text-2); }
-.wk-doc blockquote { margin: 0 0 1em; padding: 4px 16px; border-left: 3px solid var(--k, var(--accent)); color: var(--text-2); }
+.wk-doc blockquote { margin: 0 0 1em; padding: 4px 16px; border-left: 3px solid var(--k, var(--accent)); /* stroke-ok: markdown blockquote */ color: var(--text-2); }
 .wk-doc strong { font-weight: 650; }
 .wk-doc--source { padding: 22px 26px; margin-top: 18px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); font-size: 14.5px; }
 
@@ -8068,7 +8079,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
 /* the editor */
 .wiki-editor { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; padding: 0 32px 24px; }
 .wiki-editor__head { display: grid; gap: 12px; }
-.wiki-editor__title { font-size: 30px; font-weight: 700; letter-spacing: -0.025em; padding: 4px 0; border: 0; border-bottom: 2px solid var(--border); background: transparent; color: var(--text); outline: 0; transition: border-color var(--dur-base) var(--ease-out); }
+.wiki-editor__title { font-size: 30px; font-weight: 700; letter-spacing: -0.025em; padding: 4px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); outline: 0; transition: border-color var(--dur-base) var(--ease-out); }
 .wiki-editor__title:focus { border-color: var(--k, var(--accent)); }
 .wiki-editor__kinds { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .wiki-editor__kind { width: 140px; height: 24px; padding: 0 10px; border-radius: 12px; border: 1px dashed var(--border-strong); background: transparent; font: inherit; font-size: 12px; color: var(--text); }
@@ -8383,7 +8394,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
   border-color: var(--border-strong);
 }
 .catalog__card.is-mine:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 2px;
 }
 .catalog__logo--own {
@@ -8512,7 +8523,7 @@ button.wk-pill.is-on { box-shadow: 0 0 0 1.5px var(--k); background: color-mix(i
   outline: none;
 }
 .agent-card:focus-visible {
-  box-shadow: var(--shadow-lg), 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--accent), 0 0 0 2px var(--accent-soft); /* stroke-ok: focus, 1px edge + soft halo */
 }
 /* A band of the agent's own color, the face sitting on its edge. */
 .agent-card__band {
@@ -8595,7 +8606,7 @@ button.agent-card__now:hover {
 }
 .is-idle .agent-card__dot {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--ok);
+  box-shadow: inset 0 0 0 1px var(--ok);
 }
 .is-working .agent-card__dot {
   background: var(--accent);
@@ -8820,7 +8831,7 @@ button.agent-card__now:hover {
 .select__trigger:not(:disabled):hover { border-color: var(--border); background: var(--hover); }
 .select__trigger:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 2px var(--accent-soft); /* stroke-ok: focus, 1px edge + soft halo */
   border-color: var(--accent);
 }
 .select__trigger.is-disabled { opacity: 0.5; cursor: not-allowed; background: var(--bg); }
@@ -9116,7 +9127,7 @@ button.agent-card__now:hover {
 }
 .intro-input:focus-visible {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
 }
 .intro-input--sm {
   height: 40px;
@@ -9183,7 +9194,7 @@ button.agent-card__now:hover {
 .missions button:focus-visible,
 .autonomy-pick__row:focus-visible,
 .missions-card:focus-visible {
-  outline: 2px solid var(--i-accent);
+  outline: 2px solid var(--i-accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 3px;
 }
 .intro-link {
@@ -9332,7 +9343,7 @@ button.agent-card__now:hover {
   font-weight: 650;
   font-size: 24px;
   text-align: center;
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft); /* stroke-ok: soft focus halo, a fill not a line */
   outline: none;
 }
 .intro-name__edit {
@@ -9366,7 +9377,7 @@ button.agent-card__now:hover {
   cursor: pointer;
 }
 .intro-color.is-on {
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--agent);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--agent); /* stroke-ok: picked color swatch: the ring is the selection */
 }
 
 /* The Tuca's side panel and speech. */
@@ -9475,7 +9486,7 @@ button.agent-card__now:hover {
   color: var(--i-ink-2);
 }
 .intro-card--quiet[aria-expanded='true'] {
-  box-shadow: inset 0 0 0 2px var(--i-ink-3);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .intro-card--live {
   flex-direction: column;
@@ -9587,7 +9598,7 @@ button.agent-card__now:hover {
 }
 .intro-check path {
   stroke: #fff;
-  stroke-width: 2.2;
+  stroke-width: 2.2; /* stroke-ok: check glyph inside a filled disc */
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -9595,7 +9606,7 @@ button.agent-card__now:hover {
 .intro-spin circle {
   fill: none;
   stroke: var(--i-blob);
-  stroke-width: 3.5;
+  stroke-width: 3.5; /* stroke-ok: spinner */
   stroke-dasharray: 36 22;
 }
 .intro-spin {
@@ -9604,7 +9615,7 @@ button.agent-card__now:hover {
 .intro-pending circle {
   fill: none;
   stroke: var(--i-dot);
-  stroke-width: 2;
+  stroke-width: 1.5; /* stroke-ok: icon glyph */
 }
 .intro-fail {
   display: flex;
@@ -9714,17 +9725,17 @@ button.agent-card__now:hover {
   background: var(--i-lilac-tick);
 }
 /* The two jobs behind the scenes: two cream cards side by side, the whole card opens the menu. */
-.intro-jobs {
+.job-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 2px;
 }
-.intro-jobs__hint {
+.job-cards__hint {
   grid-column: 1 / -1;
   font-size: 13px;
 }
-.intro-job {
+.job-card {
   position: relative;
   display: flex;
   align-items: center;
@@ -9737,26 +9748,26 @@ button.agent-card__now:hover {
   box-shadow: inset 0 0 0 1px var(--border);
   transition: var(--transition-ui);
 }
-.intro-job:hover,
-.intro-job:focus-within {
+.job-card:hover,
+.job-card:focus-within {
   background: var(--i-lilac);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
-.intro-job > .engine-mark {
+.job-card > .engine-mark {
   border-radius: var(--radius);
 }
-.intro-job > .icon {
+.job-card > .icon {
   flex-shrink: 0;
   color: var(--i-ink-3);
 }
-.intro-job__text {
+.job-card__text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
-.intro-job__title {
+.job-card__title {
   font-family: var(--i-display);
   font-weight: 600;
   font-size: 14px;
@@ -9765,20 +9776,20 @@ button.agent-card__now:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.intro-job__model {
+.job-card__model {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.intro-job__model b {
+.job-card__model b {
   font-size: 16px;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.intro-job__tag {
+.job-card__tag {
   flex-shrink: 0;
   font-size: 11.5px;
   font-weight: 700;
@@ -9787,20 +9798,20 @@ button.agent-card__now:hover {
   color: var(--i-ink-2);
   background: var(--i-quiet);
 }
-.intro-job__tag.is-fast {
+.job-card__tag.is-fast {
   color: var(--i-lilac-ink);
   background: var(--i-lilac);
 }
-.intro-job:hover .intro-job__tag.is-fast,
-.intro-job:focus-within .intro-job__tag.is-fast {
+.job-card:hover .job-card__tag.is-fast,
+.job-card:focus-within .job-card__tag.is-fast {
   background: var(--i-card);
 }
 /* The app's Select, laid invisibly over the card: its trigger is the card, its menu anchors there. */
-.intro-job__select.select {
+.job-card__select.select {
   position: absolute;
   inset: 0;
 }
-.intro-job__select .select__trigger {
+.job-card__select .select__trigger {
   height: 100%;
   border: 0;
   border-radius: var(--radius-lg);
@@ -9939,7 +9950,7 @@ button.agent-card__now:hover {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .intro-say:focus-within {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .intro-say input {
   flex: 1;
@@ -9997,7 +10008,7 @@ button.agent-card__now:hover {
   place-items: center;
 }
 .intro-tick .icon {
-  stroke-width: 3;
+  stroke-width: 2; /* stroke-ok: icon glyph, the app icon weight */
 }
 /* The optional connector: one slim line with a link, under the choice. */
 .intro-offer {
@@ -10052,21 +10063,22 @@ button.agent-card__now:hover {
   -webkit-app-region: no-drag;
 }
 .autonomy-pick__row:hover {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .autonomy-pick__row.is-on {
   background: var(--i-lilac);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .autonomy-pick__dot {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 2px var(--i-ink-3);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .autonomy-pick__row.is-on .autonomy-pick__dot {
-  box-shadow: inset 0 0 0 6px var(--i-lilac-tick);
+  box-shadow: inset 0 0 0 1px var(--accent), inset 0 0 0 4px var(--panel); /* stroke-ok: picked radio: a 1px ring, the 4px is the gap before the dot */
+  background: var(--accent);
 }
 .autonomy-pick__tag {
   flex-shrink: 0;
@@ -10105,14 +10117,15 @@ button.agent-card__now:hover {
 }
 .autonomy-pick--compact .autonomy-pick__row.is-on {
   background: var(--i-lilac);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .autonomy-pick--compact .autonomy-pick__dot {
   width: 16px;
   height: 16px;
 }
 .autonomy-pick--compact .autonomy-pick__row.is-on .autonomy-pick__dot {
-  box-shadow: inset 0 0 0 5px var(--i-lilac-tick);
+  box-shadow: inset 0 0 0 1px var(--accent), inset 0 0 0 4px var(--panel); /* stroke-ok: picked radio: a 1px ring, the 4px is the gap before the dot */
+  background: var(--accent);
 }
 .autonomy-pick--compact .autonomy-pick__hint {
   font-size: 13px;
@@ -10265,7 +10278,7 @@ button.agent-card__now:hover {
   display: flex;
 }
 .intro-people__faces .avatar--me {
-  border: 2px solid #1d1a16;
+  border: 2px solid #1d1a16; /* stroke-ok: avatar stack separation */
   box-sizing: content-box;
 }
 .intro-people__faces .avatar--me + .avatar--me {
@@ -10389,10 +10402,10 @@ button.agent-card__now:hover {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .intro-path.is-on {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .intro-path:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 2px;
 }
 .intro-path .intro-card__text b {
@@ -10409,11 +10422,12 @@ button.agent-card__now:hover {
   height: 14px;
   margin-top: 3px;
   border-radius: 7px;
-  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
   transition: var(--transition-ui);
 }
 .intro-path.is-on .intro-path__radio {
-  box-shadow: inset 0 0 0 4.5px var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), inset 0 0 0 4px var(--panel); /* stroke-ok: picked radio: a 1px ring, the 4px is the gap before the dot */
+  background: var(--accent);
 }
 /* The agent being made: a quiet panel, the avatar and its name. */
 .intro-art--agent {
@@ -10480,7 +10494,7 @@ button.agent-card__now:hover {
 .coach__hole {
   position: fixed;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax rgba(20, 16, 12, 0.32);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 200vmax rgba(20, 16, 12, 0.32);
   transition: top var(--dur-base) var(--ease-out), left var(--dur-base) var(--ease-out), width var(--dur-base) var(--ease-out), height var(--dur-base) var(--ease-out);
 }
 .coach__card {
@@ -10896,7 +10910,7 @@ button.agent-card__now:hover {
   opacity: 0.4;
 }
 .proposal-group__dots button.is-now {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 1px;
 }
 .proposal-group__pager {
@@ -10998,10 +11012,10 @@ button.agent-card__now:hover {
 }
 .intro-pick[aria-checked='false'] .intro-pick__box {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .intro-pick:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -11047,7 +11061,7 @@ button.agent-card__now:hover {
   background: var(--hover);
 }
 .usage-dock__btn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: 1px;
 }
 .usage-dock__ring {
@@ -11072,12 +11086,12 @@ button.agent-card__now:hover {
 .usage-dock__track {
   fill: none;
   stroke: var(--border);
-  stroke-width: 2.5;
+  stroke-width: 2.5; /* stroke-ok: usage ring */
 }
 .usage-dock__fill {
   fill: none;
   stroke: var(--ring);
-  stroke-width: 2.5;
+  stroke-width: 2.5; /* stroke-ok: usage ring */ /* stroke-ok: usage ring */
   stroke-linecap: round;
   transition: stroke-dashoffset var(--dur-data) var(--ease-out);
 }
@@ -11246,7 +11260,7 @@ button.agent-card__now:hover {
   background: var(--hover);
 }
 .skill-tree__row:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
   outline-offset: -2px;
 }
 .skill-tree__row--folder {
@@ -11343,4 +11357,712 @@ button.agent-card__now:hover {
     position: static;
     max-height: none;
   }
+}
+
+/* The harnesses as one list in two groups (Harness.tsx): a quiet title with the count, rows apart by
+   a line, each row's state said once by a dot and a word, one action in its own column. */
+.harnesses__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.harnesses__title span {
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.harnesses__rows {
+  border-top: 1px solid var(--border);
+}
+.harnesses__rows > .harness {
+  border-bottom: 1px solid var(--border);
+}
+.harness__check--none {
+  border-color: transparent;
+  cursor: default;
+}
+.harness__state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 96px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.harness__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+.harness__state.is-on {
+  color: var(--text-2);
+}
+.harness__state.is-on .harness__dot {
+  background: var(--ok);
+}
+.harness__state.is-warn {
+  color: var(--warn);
+}
+.harness__state.is-warn .harness__dot {
+  background: var(--warn);
+}
+.harness__action {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 76px;
+}
+.harness__more {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+@media (max-width: 560px) {
+  .harness__state {
+    min-width: 0;
+  }
+  .harness__body {
+    margin-left: 30px;
+  }
+}
+/* The agents' models: the bulk bar only while some are picked, "Salvar" only on a changed row. */
+.agent-models__listhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.agent-models__bulk { display: grid; gap: 10px; margin: 0 0 4px; padding: 12px 14px; border: 0; border-radius: var(--radius-lg); background: var(--hover); }
+.agent-models__bulkhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.agent-models__row { padding: 12px 0; }
+.agent-models__spacer { width: 62px; flex: none; }
+/* On a phone the row's state and action take a second line, under the name. */
+@media (max-width: 560px) {
+  .harness__head {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .harness__name {
+    flex: 1 1 calc(100% - 70px);
+    min-width: 0;
+  }
+  .harness__state {
+    margin-left: 70px;
+    flex: 1;
+  }
+  /* The command still shows when Instalar can't open a terminal. */
+  .harness__more {
+    display: none;
+  }
+}
+
+/* ---------- the first run's opening field (ToucanHero.tsx) ----------
+   The beak's orange, the icon's toucan at half a window, cropped like the icon. The one loud moment of
+   the first run; every other step keeps to the app's quiet look. */
+:root {
+  --hero-field: #e2541b;
+  --hero-beak: #ff8c24;
+  --hero-jaw: #ffb15c;
+  --hero-ink: #121212;
+  --hero-paper: #f6efe3;
+}
+.intro__split--hero {
+  padding: 16px;
+}
+.tuca-hero {
+  position: relative;
+  width: min(520px, 44%);
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--hero-field);
+  isolation: isolate;
+}
+.tuca-hero__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* The icon's 100-unit toucan at 3.6x, its beak running off the edge; listening, it tilts around its eye. */
+.tuca-hero__head {
+  transform: translate(61px, 165px) scale(3.6) translate(38px, 47px) rotate(0deg) translate(-38px, -47px);
+  transition: transform 420ms var(--ease-out);
+}
+.tuca-hero__art.is-listening .tuca-hero__head {
+  transform: translate(61px, 165px) scale(3.6) translate(38px, 47px) rotate(-3deg) translate(-38px, -47px);
+}
+.tuca-hero__body {
+  fill: var(--hero-ink);
+}
+.tuca-hero__beak {
+  fill: var(--hero-beak);
+}
+.tuca-hero__jaw {
+  fill: var(--hero-jaw);
+}
+.tuca-hero__word {
+  position: absolute;
+  left: 28px;
+  top: 24px;
+  z-index: 1;
+  font-family: var(--i-display);
+  font-weight: 650;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  color: var(--hero-paper);
+}
+.tuca-hero__say {
+  position: absolute;
+  left: 9%;
+  top: 30%;
+  z-index: 1;
+  max-width: 42%;
+  padding: 10px 14px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--hero-paper);
+  color: var(--hero-ink);
+  font-family: var(--i-display);
+  font-weight: 650;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transform-origin: bottom left;
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-enter) var(--ease-spring);
+}
+.tuca-hero__say.is-on {
+  opacity: 1;
+  transform: none;
+}
+.intro-h1--hero {
+  font-size: clamp(40px, 4.6vw, 60px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+@media (max-width: 760px) {
+  .tuca-hero {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tuca-hero__head,
+  .tuca-hero__say,
+  .tuca__pupil,
+  .tuca__eye {
+    transition: none;
+  }
+}
+
+/* The harnesses in use as cards (Harness.tsx): the mark (or the plan's ring around it), the name and
+   account, then a foot with the state, how many agents run there and the one action. */
+.harnesses__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 10px;
+}
+.harness--card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: box-shadow var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.harness--card:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.harness--card.is-on {
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+}
+.harness--card.is-open {
+  grid-column: 1 / -1;
+}
+.harness--card .harness__body {
+  margin-left: 0;
+}
+.harness-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.harness-card__ring {
+  display: inline-grid;
+}
+.harness-card__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  cursor: pointer;
+}
+.harness-card__name strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.harness-card__name span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.harness-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.harness-card__foot .harness__state {
+  min-width: 0;
+}
+.harness-card__agents {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* What the memory learns: the question and three short answers on one line. */
+.learn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.learn-row__label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.job-card__dot {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--active);
+  flex: none;
+}
+
+/* ---------- a new agent's studio (Onboarding.tsx): the agent on a canvas, the controls in a deck ----------
+   The agent is what's being made, so it's the largest thing on screen: a rounded canvas on its own color
+   with a dot grid drawn in it, the avatar at 132px and its name in the display face. It stays put while
+   the deck beside it changes with the step (who it is, what it can use, its first task). */
+.onb__stage:has(.onb-studio) {
+  max-width: 1360px;
+}
+.onb-studio {
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 460px);
+  gap: 32px;
+}
+.onb-studio > .onb-studio__canvas {
+  order: -1;
+  position: sticky;
+  top: 12px;
+  padding-top: 0;
+}
+.onb-studio > .onb__main {
+  max-width: none;
+  min-width: 0;
+}
+.onb-studio h1 {
+  font-family: var(--i-display);
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+.onb-card--stage {
+  position: relative;
+  justify-content: center;
+  gap: 2px;
+  min-height: min(640px, calc(100vh - 150px));
+  padding: 48px 32px;
+  border: 0;
+  border-radius: 22px;
+  background-color: color-mix(in srgb, var(--agent) 9%, var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 16%, var(--border));
+  overflow: hidden;
+}
+/* A soft floor under the avatar, in its color: the agent stands on the canvas. */
+.onb-card--stage::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 20px);
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  transform: translate(-50%, -60%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--agent) 18%, transparent), transparent 68%);
+  pointer-events: none;
+}
+.onb-card--stage > * {
+  position: relative;
+}
+.onb-card--stage .avatar--agent {
+  border-radius: 30%;
+  animation: rise var(--dur-slow) var(--ease-out) both;
+}
+.onb-card--stage h2 {
+  margin: 18px 0 2px;
+  font-family: var(--i-display);
+  font-size: 40px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.onb-card--stage .onb-card__model {
+  background: color-mix(in srgb, var(--agent) 12%, var(--panel));
+}
+.onb-card--stage .onb-card__bubble {
+  max-width: 380px;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--border), 0 8px 24px rgba(30, 20, 10, 0.06);
+  padding: 12px 14px;
+  font-size: 13.5px;
+}
+@media (max-width: 960px) {
+  .onb-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .onb-studio > .onb-studio__canvas {
+    position: static;
+  }
+  .onb-card--stage {
+    min-height: 360px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onb-card--stage .avatar--agent {
+    animation: none;
+  }
+}
+.onb-studio .onb-templates {
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+}
+
+/* Each mission's drawing (Missions.tsx MissionArt): full color when it's next, a check badge once done,
+   quieter while it waits. */
+:root {
+  --art-ink: #1d1a16;
+  --art-paper: #fffaf3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --art-ink: #efeae2;
+    --art-paper: #24211e;
+  }
+}
+:root[data-theme='dark'] {
+  --art-ink: #efeae2;
+  --art-paper: #24211e;
+}
+.mission {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+}
+.mission__art {
+  grid-row: 1 / span 2;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  transition: opacity var(--dur-base) var(--ease-out), filter var(--dur-base) var(--ease-out);
+}
+.mission:not(.is-next):not(.is-done) .mission__art {
+  opacity: 0.55;
+  filter: grayscale(0.85);
+}
+.mission.is-next .mission__art {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+.mission__art .mission__check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  box-shadow: 0 0 0 2px var(--panel); /* stroke-ok: badge cut out of the drawing */
+}
+/* The agent being born (Intro.tsx Born): the same canvas as a new agent's studio, on its own color. */
+.intro-art--agent {
+  background-color: color-mix(in srgb, var(--agent) 9%, var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 16%, var(--border));
+  border-radius: 22px;
+}
+.intro-art--agent .intro-born::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--agent) 20%, transparent), transparent 68%);
+  pointer-events: none;
+}
+.intro-art--agent .intro-born .avatar--agent {
+  position: relative;
+  animation: rise var(--dur-slow) var(--ease-out) both;
+}
+.intro-art--agent .intro-name b {
+  font-size: 40px;
+  letter-spacing: -0.03em;
+}
+
+/* The agent's presence, behind it on its canvas: hairline rings in its color, spreading from the avatar
+   and gone before the edge. Drawn, not a texture: a repeating radial gradient under a fading mask. */
+.onb-card--stage::after,
+.intro-art--agent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-radial-gradient(circle at 50% var(--aura-y, 38%), transparent 0 31px, color-mix(in srgb, var(--agent) 15%, transparent) 31px 32px);
+  -webkit-mask-image: radial-gradient(circle at 50% var(--aura-y, 38%), #000 0 80px, transparent 230px);
+  mask-image: radial-gradient(circle at 50% var(--aura-y, 38%), #000 0 80px, transparent 230px);
+  z-index: -1;
+}
+.onb-card--stage {
+  --aura-y: 34%;
+  isolation: isolate;
+}
+.intro-art--agent {
+  --aura-y: 41%;
+  position: relative;
+  isolation: isolate;
+}
+/* The goals' thumbs (GoalArt.tsx) on the first run's tiles: the drawing on its own quiet tile. */
+.intro-tile .goal-art {
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.intro-tile:hover .goal-art {
+  transform: translateY(-2px) rotate(-3deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-tile:hover .goal-art {
+    transform: none;
+  }
+}
+
+/* Bringing agents from another bot (BotImport.tsx): where they live, its one step, and a drop zone. */
+.bot-import {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+}
+.bot-import__sources {
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+.bot-import__step {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.bot-import__skill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.bot-import__drop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.bot-import__drop b {
+  color: var(--text);
+  font-weight: 600;
+}
+.bot-import__drop:hover,
+.bot-import__drop.is-over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+}
+.bot-import__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+  white-space: pre-line;
+}
+.bot-import__note.is-bad {
+  color: var(--danger);
+}
+.team-card__bots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.team-card__bots > b {
+  font-size: 13px;
+}
+
+/* The way back on a step-by-step screen (ui.tsx BackButton): an icon at the top left, before the dots. */
+.intro__top-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: var(--transition-ui);
+  -webkit-app-region: no-drag;
+}
+.back-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.back-btn:focus-visible {
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
+  outline-offset: 1px;
+}
+
+/* The team on the beak (ToucanHero.tsx): three agents perched, one status bubble going through them. */
+.tuca-hero__team {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 6px;
+}
+.tuca-hero__perch {
+  display: flex;
+  gap: 6px;
+  padding-left: 6px;
+}
+.tuca-hero__agent {
+  line-height: 0;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.tuca-hero__agent .avatar--agent {
+  border-radius: 30%;
+  box-shadow: 0 0 0 2px var(--hero-field); /* stroke-ok: cut out of the orange field */
+}
+.tuca-hero__agent.is-on {
+  transform: translateY(-4px);
+}
+.tuca-hero__status {
+  align-self: flex-start;
+  margin-left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 132px;
+  padding: 5px 9px;
+  border-radius: 10px 10px 10px 3px;
+  background: var(--hero-paper);
+  color: var(--hero-ink);
+  font: 600 11px/1.25 var(--font);
+  animation: rise var(--dur-enter) var(--ease-out) both;
+}
+.tuca-hero__status.is-approved {
+  background: var(--hero-ink);
+  color: var(--hero-paper);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tuca-hero__status,
+  .tuca-hero__agent {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* The welcome's two ways in (Intro.tsx Welcome): large rows, the only thing on the first screen. */
+.intro-ways {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+  margin-top: 8px;
+}
+.intro-way {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 16px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px var(--border);
+  cursor: pointer;
+  transition: var(--transition-ui);
+}
+.intro-way b {
+  font-size: 16px;
+  font-weight: 600;
+}
+.intro-way span {
+  grid-row: 2;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.intro-way .icon {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--text-3);
+  transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.intro-way:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+.intro-way:hover .icon {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+.intro-way:focus-visible {
+  outline: 2px solid var(--accent); /* stroke-ok: keyboard focus, WCAG 2.4.7 */
+  outline-offset: 2px;
+}
+.intro-paths--list {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 480px;
+}
+.intro__center--welcome {
+  animation: rise var(--dur-enter) var(--ease-out) both;
 }

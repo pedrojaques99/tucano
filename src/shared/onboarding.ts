@@ -17,6 +17,7 @@ export interface Goal {
   role: string // short, for the sidebar
   tagline: string // under the name, as the person reads it ("Organiza a sua semana")
   color: AgentColor
+  look?: string // the avatar of its trade (an id in the avatar gallery: a magnifier for research)
   web: boolean
   instructions: string
   does: string[] // what it does, in plain words, one line each (how far it goes alone is chosen apart)
@@ -32,6 +33,7 @@ export const GOALS = (): Goal[] => [
     role: L('Agenda', 'Planning'),
     tagline: L('Organiza a sua semana', 'Organizes your week'),
     color: 'violet',
+    look: 'book',
     web: true,
     instructions: L(
       'Você ajuda a pessoa a organizar a semana: compromissos, tarefas e prioridades.\nAntes de montar um plano, pergunta o que ela tem pra fazer e o que não pode atrasar.\nEntrega o plano por dia, em listas curtas, deixando folga pro imprevisto.\nQuando algo não cabe, diz o que sugere adiar e por quê.\nPesquisa na internet só quando precisa (um endereço, um horário de funcionamento).',
@@ -48,6 +50,7 @@ export const GOALS = (): Goal[] => [
     role: L('Pesquisa', 'Research'),
     tagline: L('Pesquisa e resume pra você', 'Researches and sums up for you'),
     color: 'sky',
+    look: 'magnifier',
     web: true,
     instructions: L(
       'Você pesquisa na web antes de responder e cita as fontes com links.\nResume em tópicos curtos, separando o que é fato do que é opinião.\nQuando as fontes discordam, mostra as duas versões.\nDiz com clareza quando não achou nada confiável, em vez de chutar.\nPergunta o objetivo da pesquisa quando ele não estiver claro.',
@@ -63,6 +66,7 @@ export const GOALS = (): Goal[] => [
     role: L('Textos', 'Writing'),
     tagline: L('Escreve e-mails e posts no seu tom', 'Writes emails and posts in your voice'),
     color: 'rose',
+    look: 'paint-brush',
     web: true,
     instructions: L(
       'Você escreve e-mails, posts e textos no tom da pessoa: leve, curto e sem jargão.\nEntrega o rascunho pronto pra usar, e no máximo duas versões quando o tom não estiver claro.\nPergunta pra quem é o texto e o que ele precisa conseguir, se ela não disser.',
@@ -79,6 +83,7 @@ export const GOALS = (): Goal[] => [
     role: L('Atendimento', 'Support'),
     tagline: L('Ajuda a responder os seus clientes', 'Helps you reply to your customers'),
     color: 'teal',
+    look: 'chat',
     web: false,
     instructions: L(
       'Você ajuda a pessoa a responder clientes com rapidez e simpatia.\nEscreve a resposta pronta, curta e educada, no tom da marca dela.\nQuando falta uma informação (preço, prazo, política de troca), pergunta em vez de inventar.\nGuarda as respostas que funcionam pra usar de novo.',
@@ -94,6 +99,7 @@ export const GOALS = (): Goal[] => [
     role: L('Planilhas', 'Spreadsheets'),
     tagline: L('Cuida das suas planilhas', 'Looks after your spreadsheets'),
     color: 'amber',
+    look: 'brain',
     web: false,
     instructions: L(
       'Você ajuda com planilhas: organizar dados, fazer contas, montar fórmulas e resumir o que os números dizem.\nMostra a conta ou a fórmula que usou, pra pessoa conferir.\nQuando os dados parecem errados ou incompletos, avisa antes de seguir.\nExplica em português simples, sem jargão de planilha.',
@@ -109,6 +115,7 @@ export const GOALS = (): Goal[] => [
     role: L('Código', 'Code'),
     tagline: L('Programa com você', 'Codes with you'),
     color: 'indigo',
+    look: 'rocket',
     web: true,
     instructions: L(
       'Você ajuda com código, arquitetura e bugs.\nExplica o raciocínio em poucas linhas e mostra código quando ajuda.\nAntes de propor uma mudança grande, descreve o plano e pergunta.\nQuando não tem certeza de como algo funciona no projeto da pessoa, pergunta em vez de supor.',
@@ -166,6 +173,7 @@ const ownGoal = (): Goal => ({
   role: L('Assistente', 'Assistant'),
   tagline: L('Ajuda no que você pediu', 'Helps with what you asked'),
   color: 'green',
+  look: 'lightbulb',
   web: true,
   instructions: L(
     'Você ajuda a pessoa com o que ela pediu, do jeito mais simples que funcionar.\nAntes de começar, pergunta o que falta pra entender a tarefa.\nResponde em listas curtas e fáceis de seguir.',

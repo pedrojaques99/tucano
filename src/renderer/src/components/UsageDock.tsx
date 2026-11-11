@@ -29,7 +29,7 @@ export function windowLabel(key: string): string {
   return m[1] === 'five_hour' ? L(`${name}, 5 horas`, `${name}, 5 hours`) : L(`${name}, semanal`, `${name}, weekly`)
 }
 
-const left = (w: Window): number => Math.min(1, Math.max(0, 1 - w.utilization))
+export const left = (w: Window): number => Math.min(1, Math.max(0, 1 - w.utilization))
 export const tone = (share: number): '' | 'is-warn' | 'is-danger' => (share < 0.1 ? 'is-danger' : share < 0.3 ? 'is-warn' : '')
 
 // "17 min", "3 h 5 min", "3 d 8 h": until the window resets.
@@ -42,7 +42,7 @@ export function resetsIn(at: number, now = Date.now()): string {
   return h % 24 ? `${d} d ${h % 24} h` : `${d} d`
 }
 
-function Ring({ engine, share }: { engine: EngineId; share: number }): ReactNode {
+export function QuotaRing({ engine, share }: { engine: EngineId; share: number }): ReactNode {
   const r = 13
   const c = 2 * Math.PI * r
   return (
@@ -69,7 +69,7 @@ export function UsageDock(): ReactNode {
         return (
           <div key={p.engine} className="usage-dock__item">
             <button className="usage-dock__btn" aria-label={L(`${name}: ${Math.round(share * 100)}% restante. Abrir Uso e limites`, `${name}: ${Math.round(share * 100)}% left. Open Usage and limits`)} aria-describedby={`usage-${p.engine}`} onClick={() => navigate({ kind: 'usage' })}>
-              <Ring engine={p.engine} share={share} />
+              <QuotaRing engine={p.engine} share={share} />
             </button>
             <div id={`usage-${p.engine}`} role="tooltip" className="usage-pop">
               <span className="usage-pop__title">

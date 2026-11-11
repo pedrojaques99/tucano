@@ -9,6 +9,8 @@ import { configDefaults, defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, 'site/**'],
+    // One temp folder per run, removed at the end (test/global-tmp.ts).
+    globalSetup: ['test/global-tmp.ts'],
     testTimeout: process.platform === 'win32' ? 60_000 : 5_000,
     hookTimeout: process.platform === 'win32' ? 60_000 : 10_000
   }

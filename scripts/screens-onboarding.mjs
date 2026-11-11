@@ -6,15 +6,17 @@
 // advanced and from-scratch paths, English and dark. Only the window is captured.
 //   node scripts/screens-onboarding.mjs <out dir>
 import { _electron as electron } from 'playwright'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const out = process.argv[2] ?? 'screens'
 mkdirSync(out, { recursive: true })
+const made = []
+const track = (d) => (made.push(d), d)
 const errors = []
 
 async function open(env = {}) {
-  const data = mkdtempSync(join(tmpdir(), 'tucano-onb-'))
+  const data = track(mkdtempSync(join(tmpdir(), 'tucano-onb-')))
   const app = await electron.launch({ args: ['.'], env: { ...process.env, TUCANO_DATA: data, TUCANO_FAKE_ENGINES: '1', TUCANO_SEED: '0', TUCANO_LOCALE: 'pt-BR', ...env } })
   const win = await app.firstWindow()
   await win.setViewportSize({ width: 1280, height: 800 })
@@ -28,9 +30,10 @@ const untick = async (win) => {
   await win.waitForTimeout(800)
   while ((await win.locator('.intro-bring .toggle.is-on').count()) > 0) await win.locator('.intro-bring .toggle.is-on').first().click()
 }
+// The opening lasts ~1.4 s: it may be gone before we look, so either one will do.
 const skipSplash = async (win) => {
-  await win.waitForSelector('.splash')
-  await win.click('.splash')
+  await win.waitForSelector('.splash, .intro')
+  if (await win.locator('.splash').count()) await win.locator('.splash').click().catch(() => {})
   await win.waitForSelector('.intro')
 }
 
@@ -39,13 +42,23 @@ const skipSplash = async (win) => {
   const { app, win } = await open({ TUCANO_FAKE_NO_AI: '1' })
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
-  await win.fill('.intro-input', 'Carol')
   await settle(win)
   await shot('01-boas-vindas')
+  // Already using agents: the name and the ways in, the invite one picked.
+  await win.click('button:has-text("Já uso agentes")')
+  await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Tenho um convite ou um servidor")')
   await settle(win)
   await shot('01b-convite-ou-servidor')
-  await win.click('button:has-text("Tenho um convite ou um servidor")')
+  await win.click('button:has-text("Trazer agentes de outro bot")')
+  await settle(win)
+  await shot('01c-outro-bot')
+  // New: back, then the name alone.
+  await win.click('.intro__top .back-btn')
+  await win.click('button:has-text("Sou novo com agentes de IA")')
+  await win.fill('.intro-input', 'Carol')
+  await settle(win)
+  await shot('01d-nome')
   await win.click('button:has-text("Começar")')
   await settle(win, 1200)
   await shot('02-conectar-nada')
@@ -88,7 +101,7 @@ const skipSplash = async (win) => {
   await win.waitForSelector('.intro-chat .composer textarea', { timeout: 20_000 })
   await settle(win, 800)
   await shot('04d-ajustar-com-o-tuca')
-  await win.click('.intro__top button:has-text("Voltar")')
+  await win.click('.intro__top .back-btn')
   await settle(win)
   await win.click('button:has-text("Chamar Lia pro time")')
   await win.waitForSelector('.coach__card--first', { timeout: 20_000 })
@@ -118,6 +131,7 @@ const skipSplash = async (win) => {
   const { app, win } = await open({ TUCANO_FAKE_NO_AI: '1' })
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
+  await win.click('button:has-text("Sou novo com agentes de IA")')
   await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.click('.intro-card--pick:has-text("Claude")')
@@ -156,12 +170,13 @@ const skipSplash = async (win) => {
   const { app, win } = await open({})
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
-  await win.fill('.intro-input', 'Carol')
   await win.click('.intro-lang button:has-text("English")')
-  await win.waitForSelector('text=Get started')
+  await win.waitForSelector('text=I already use agents')
   await settle(win)
   await shot('10-en-welcome')
-  await win.click('button:has-text("Get started")')
+  await win.click('button:has-text("I already use agents")')
+  await win.fill('.intro-input', 'Carol')
+  await win.click('button:has-text("Continue")')
   await win.waitForSelector('text=answered in', { timeout: 20_000 })
   await untick(win)
   await settle(win, 800)
@@ -185,9 +200,10 @@ const skipSplash = async (win) => {
   await win.emulateMedia({ colorScheme: 'dark' })
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
-  await win.fill('.intro-input', 'Carol')
   await settle(win)
   await shot('11-escuro-boas-vindas')
+  await win.click('button:has-text("Sou novo com agentes de IA")')
+  await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.waitForSelector('text=respondeu em', { timeout: 20_000 })
   await untick(win)
@@ -211,6 +227,7 @@ const skipSplash = async (win) => {
   await win.emulateMedia({ colorScheme: 'dark' })
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
+  await win.click('button:has-text("Sou novo com agentes de IA")')
   await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.click('.intro-card--pick:has-text("Claude")')
@@ -226,6 +243,7 @@ const skipSplash = async (win) => {
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   const row = (text) => win.locator(`.autonomy-pick__row:has-text("${text}")`)
   await skipSplash(win)
+  await win.click('button:has-text("Sou novo com agentes de IA")')
   await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.waitForSelector('button:has-text("Continuar"):not([disabled])')
@@ -259,6 +277,7 @@ const skipSplash = async (win) => {
   const { app, win } = await open({ TUCANO_FAKE_NO_AI: '1' })
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
+  await win.click('button:has-text("Sou novo com agentes de IA")')
   await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.click('button:has-text("Uso chave de API")')
@@ -270,6 +289,7 @@ const skipSplash = async (win) => {
   const { app, win } = await open({})
   const shot = (name) => win.screenshot({ path: `${out}/${name}.png` })
   await skipSplash(win)
+  await win.click('button:has-text("Sou novo com agentes de IA")')
   await win.fill('.intro-input', 'Carol')
   await win.click('button:has-text("Começar")')
   await win.waitForSelector('button:has-text("Continuar"):not([disabled])')
@@ -303,3 +323,6 @@ const skipSplash = async (win) => {
 
 console.log('erros:', errors)
 if (errors.length) process.exitCode = 1 // a page error fails the run (onboarding-gate.mjs reads it)
+
+// Each run's throwaway data folders go with it: hundreds of them filled a disk once.
+process.on('exit', () => { for (const d of made) try { rmSync(d, { recursive: true, force: true }) } catch {} })

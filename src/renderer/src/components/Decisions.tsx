@@ -191,13 +191,6 @@ function Answering({ id, questions, saved, badge, byline, extra }: { id: string;
   return (
     <section className="ask ask--answer" aria-label={badge}>
       <Head badge={badge} byline={byline} nav={nav} />
-      {questions.length > 1 && (
-        <div className="ask__progress" aria-hidden>
-          {questions.map((_, i) => (
-            <span key={i} className={`ask__segment ${isAnswered(answers[i]) ? 'is-done' : ''} ${i === step ? 'is-current' : ''}`} />
-          ))}
-        </div>
-      )}
       {step === 'review' ? (
         <Review takeFocus={engaged} questions={questions} answers={answers} onEdit={(i) => (setEngaged(true), setStep(i))} onSend={send} sending={sending} />
       ) : (

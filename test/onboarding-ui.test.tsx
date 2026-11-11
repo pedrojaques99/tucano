@@ -152,7 +152,7 @@ describe('the first run', () => {
     await click(/^Continuar$/)
     expect(store.importHarnessMcp).toHaveBeenCalledWith('claude:linear')
     expect(store.linkSkill).toHaveBeenCalledWith('/s/a')
-    expect(text()).toContain('Qual é a primeira coisa que você queria tirar das suas costas?')
+    expect(text()).toContain('O que você quer delegar primeiro?')
     await click(/Organizar minha semana/)
     expect(text()).toContain('O que Lia faz por você')
     expect(text()).toContain('Quanto Lia faz por conta própria?')
@@ -199,6 +199,22 @@ describe('the first run', () => {
     vi.mocked(store.testEngine).mockImplementation(async () => ({ ok: true, seconds: 1.2, message: 'ok' }))
   })
 
+  it('found ready: what comes along can be left out one by one, under "ver qual"', async () => {
+    fake = state({ settings: { engines: engines({ claude: { installed: true, loggedIn: true, route: 'plan', account: 'Plano Claude Max' } }) } })
+    await render(<Intro />)
+    await click(/^Começar$/)
+    await tick()
+    await click(/^ver qual$/)
+    const item = (): HTMLElement => document.querySelector<HTMLElement>('.intro-bring__list [role="checkbox"]')!
+    expect(item().getAttribute('aria-checked')).toBe('true')
+    await click(item())
+    expect(item().getAttribute('aria-checked')).toBe('false')
+    const before = vi.mocked(store.importHarnessMcp).mock.calls.length
+    await click(/^Continuar$/)
+    expect(vi.mocked(store.importHarnessMcp).mock.calls.length).toBe(before)
+    expect(store.linkSkill).toHaveBeenCalledWith('/s/a')
+  })
+
   it('counts only what answered, says so while testing, and names who goes on', () => {
     expect(foundTitle(0, 2)).toBe('Testando o que achei…')
     expect(foundTitle(3, 0)).toBe('Achei 3 prontos pra usar')
@@ -207,8 +223,8 @@ describe('the first run', () => {
     expect(continueLabel(['claude'])).toBe('Continuar com Claude Code')
     expect(continueLabel(['claude', 'codex', 'opencode'])).toBe('Continuar com os 3')
     expect(continueLabel([])).toBe('Continuar')
-    expect(leftOut(['pi'])).toBe('Pi fica de fora por agora; dá pra arrumar em Configurações.')
-    expect(leftOut(['opencode', 'pi'])).toBe('OpenCode e Pi ficam de fora por agora; dá pra arrumar em Configurações.')
+    expect(leftOut(['pi'])).toBe('Pi fica de fora por agora. Dá pra arrumar em Configurações.')
+    expect(leftOut(['opencode', 'pi'])).toBe('OpenCode e Pi ficam de fora por agora. Dá pra arrumar em Configurações.')
     setLang('en')
     expect(foundTitle(1, 0)).toBe('Found 1 ready to use')
     expect(foundTitle(2, 0)).toBe('Found 2 ready to use')
@@ -385,7 +401,7 @@ describe('the sidebar and the missions', () => {
     fake = state({ agents: [lia], conversations: [geral], connectors: [{ id: 'c1' } as State['connectors'][number]], settings: { onboarding: { done: true, fresh: true } } })
     await render(<Sidebar />)
     expect(labels()).toContain('Conectores')
-    expect(document.querySelector('.nav-item.is-fresh')?.textContent).toContain('NOVO')
+    expect(document.querySelector('.nav-item.is-fresh .nav-item__new')?.getAttribute('aria-label')).toBe('novo')
     expect(text()).toContain('Você liberou Conectores')
     await click(document.querySelector('.nav-item.is-fresh')!)
     expect(store.updateSettings).toHaveBeenCalledWith({ onboarding: { done: true, fresh: true, seen: ['connectors'] } })

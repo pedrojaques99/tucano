@@ -377,10 +377,9 @@ function MeetTuca({ conv: session, onUse, onManual }: { conv: { id?: string; err
   return (
     <div className="onb__split">
       <section className="onb__main">
-        <span className="onb__kicker">{L('Tuca · Novo agente', 'Tuca · New agent')}</span>
         <h1>{L('Conte pro Tuca o que você quer delegar', 'Tell Tuca what you want to delegate')}</h1>
         <p className="onb__lead">
-          {L('Ele faz duas ou três perguntas e propõe um agente. Nada é criado sem você.', 'He asks two or three questions and proposes an agent. Nothing is created without you.')}
+          {L('Ele faz poucas perguntas e propõe um agente. Nada é criado sem o seu ok.', 'He asks a few questions and proposes an agent. Nothing is created without your ok.')}
         </p>
         <div className="onb__field onb__field--tuca-model">
           <span>{L('Modelo do Tuca', 'Tuca’s model')}</span>
@@ -467,7 +466,6 @@ function MakeAgent(p: {
   return (
     <div className="onb__split">
       <section className="onb__main">
-        <span className="onb__kicker">{L('Novo agente', 'New agent')}</span>
         <h1>{L('Quem vai trabalhar com você?', 'Who’s going to work with you?')}</h1>
         <p className="onb__lead">{L('Comece por um dos exemplos e ajuste o que quiser. Depois você monta o resto do time.', 'Start from one of the examples and adjust anything. You build the rest of the team later.')}</p>
         <div className="onb-templates">
@@ -578,8 +576,7 @@ function Powers(p: {
   return (
     <div className="onb__split">
       <section className="onb__main">
-        <span className="onb__kicker">{L(`Novo agente · O que ${name} pode usar`, `New agent · What ${name} can use`)}</span>
-        <h1>{L('Dê ferramentas, não chaves.', 'Give tools, not keys.')}</h1>
+        <h1>{L(`O que ${name} pode usar`, `What ${name} can use`)}</h1>
         <p className="onb__lead">{L('Ligue só o que a função pede. Tudo isso muda depois na página do agente, e cada ação aparece na conversa.', 'Turn on only what the role needs. All of this can change later on the agent’s page, and every action shows up in the conversation.')}</p>
         <div className="onb-powers">
           <div className="onb-power-row">
@@ -694,7 +691,6 @@ function FirstTask(p: {
   return (
     <div className="onb__split">
       <section className="onb__main">
-        <span className="onb__kicker">{L('Novo agente · Mão na massa', 'New agent · Hands on')}</span>
         <h1>{L(`O que ${name} faz primeiro?`, `What does ${name} do first?`)}</h1>
         <p className="onb__lead">
           {p.manual

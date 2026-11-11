@@ -27,7 +27,8 @@ import { Icon } from './ui'
 const fold = (s: string): string =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
-type SelectOption = { value: string; label: string; hint?: string }
+// icon: shown before the label, in the list and on the trigger (a harness's mark, say).
+type SelectOption = { value: string; label: string; hint?: string; icon?: ReactNode }
 
 type SelectProps = {
   id?: string
@@ -66,6 +67,7 @@ type Item = {
   value: string
   label: string
   hint?: string
+  icon?: ReactNode
   group?: string
   groupIndex?: number
   // Folded label, computed once, for filtering and typeahead.
@@ -90,7 +92,7 @@ const resolveItems = (
     })
     return items
   }
-  for (const o of (options ?? []).map(normalize)) items.push({ value: o.value, label: o.label, hint: o.hint, key: fold(o.label) })
+  for (const o of (options ?? []).map(normalize)) items.push({ value: o.value, label: o.label, hint: o.hint, icon: o.icon, key: fold(o.label) })
   return items
 }
 
@@ -136,6 +138,7 @@ const SelectOptionRow = memo(function SelectOptionRow({ item, index, domId, acti
           {selected && <Icon name="check" size={12} />}
         </span>
       )}
+      {item.icon}
       <span className="select__option__text">
         <span className="select__label">{item.label}</span>
         {showHint && item.hint && <span className="select__hint">{item.hint}</span>}
@@ -171,6 +174,7 @@ export function Select(props: SelectProps): ReactNode {
   // Derived data, recomputed only when the inputs change.
   const items = useMemo(() => resolveItems(options, groups), [options, groups])
   const labels = useMemo(() => new Map(items.map((it) => [it.value, it.label])), [items])
+  const icons = useMemo(() => new Map(items.map((it) => [it.value, it.icon])), [items])
   const q = fold(query.trim())
   const filteredItems = useMemo(() => (q ? items.filter((it) => it.key.includes(q)) : items), [items, q])
   const selectedSet = useMemo(() => new Set(multiple ? selectedValues : selectedValue != null ? [selectedValue] : []), [multiple, selectedValues, selectedValue])
@@ -370,7 +374,7 @@ export function Select(props: SelectProps): ReactNode {
       return <span className="select__chip">{L(`${selectedValues.length} selecionados`, `${selectedValues.length} selected`)}</span>
     }
     // An option whose value is '' ("the usual one") shows as itself, like any other.
-    return selectedValue != null && labels.has(selectedValue) ? <span className="select__value">{labels.get(selectedValue)}</span> : selectedValue ? <span className="select__value">{selectedValue}</span> : <span className="select__placeholder">{placeholder}</span>
+    return selectedValue != null && labels.has(selectedValue) ? <span className="select__value">{icons.get(selectedValue)}{labels.get(selectedValue)}</span> : selectedValue ? <span className="select__value">{selectedValue}</span> : <span className="select__placeholder">{placeholder}</span>
   }
 
   const menuId = `${idBase}-menu`

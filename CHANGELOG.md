@@ -64,6 +64,9 @@ What changed in each version of Tucano. The format follows [Keep a Changelog](ht
 ### Fixed
 
 - **An approval's Refuse button stays on screen on a phone.** The approval card put Approve, Approve and always allow, and Refuse on one line that didn't wrap, so at phone width (where server mode sends people to approve) Refuse was cut off past the edge and the conversation scrolled sideways. The buttons now wrap to a second line.
+### Fixed
+
+- **The tabs of Settings and of an agent's page scroll on a phone.** They sat in one row that couldn't scroll or wrap, so at phone width the last tab was cut off, a long label broke over two lines, and the whole page scrolled sideways. The tab row now scrolls sideways on its own and each label stays on one line.
 
 ## [0.2.27] - 2026-11-10
 

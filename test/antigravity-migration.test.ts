@@ -21,6 +21,8 @@ it('moves what ran on Gemini over to Antigravity, and leaves the rest alone', ()
   // As a database from before the rename: that migration not run yet, nor the columns added after it.
   const rename = MIGRATIONS.findIndex((m) => m.includes("'antigravity:' || substr(model, 8)"))
   const raw = new DatabaseSync(file)
+  // Indexes first: a column can't be dropped while an index of a later migration holds it.
+  for (const m of MIGRATIONS.slice(rename + 1)) for (const [, index] of m.matchAll(/CREATE INDEX IF NOT EXISTS (\w+)/g)) raw.exec(`DROP INDEX IF EXISTS ${index}`)
   for (const m of MIGRATIONS.slice(rename + 1)) for (const [, table, column] of m.matchAll(/ALTER TABLE (\w+) ADD COLUMN (\w+)/g)) raw.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`)
   raw.exec(`PRAGMA user_version = ${rename}`)
   raw.close()

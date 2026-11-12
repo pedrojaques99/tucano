@@ -28,6 +28,7 @@ const PROBLEM = (): Record<Problem['kind'], string> => ({
 export function ReportPage(): ReactNode {
   const [week, setWeek] = useState(() => startOfWeek(Date.now()))
   const [report, setReport] = useState<Report | null>(null)
+  const people = useStore((s) => s.people)
   const thisWeek = week === startOfWeek(Date.now())
   // The team's report is the admins' (a member can still land here from the search).
   const admin = useStore(amAdmin)
@@ -123,6 +124,25 @@ export function ReportPage(): ReactNode {
                   <span className="muted small">{w.replies === 1 ? L('1 resposta', '1 reply') : L(`${w.replies} respostas`, `${w.replies} replies`)}</span>
                   <span className="rep-task__tokens">{tokens(w.tokens)}</span>
                   <span className="muted small rep-task__when">{ago(w.last)}</span>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {report.people && report.people.length > 0 && (
+            <section className="read-group">
+              <h2>
+                {L('Por pessoa', 'By person')}<span>{L('Quanto os pedidos de cada pessoa usaram na semana.', "How much each person's requests used this week.")}</span>
+              </h2>
+              {report.people.map((p) => (
+                <div key={p.person} className="rep-task">
+                  <strong>{people.find((x) => x.id === p.person)?.name ?? L('Alguém que saiu', 'Someone who left')}</strong>
+                  <span className="rep-task__who">
+                    <Agents ids={p.agents} />
+                  </span>
+                  <span className="grow" />
+                  <span className="muted small">{p.replies === 1 ? L('1 resposta', '1 reply') : L(`${p.replies} respostas`, `${p.replies} replies`)}</span>
+                  <span className="rep-task__tokens">{tokens(p.tokens)}</span>
                 </div>
               ))}
             </section>

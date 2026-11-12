@@ -550,6 +550,11 @@ export const MIGRATIONS = [
   `,
   `
   ALTER TABLE agents ADD COLUMN more_reserves TEXT NOT NULL DEFAULT '[]';
+  `,
+  // Whose request each reply worked on, for the usage per person (the router's and memory's turns have none).
+  `
+  ALTER TABLE receipts ADD COLUMN person TEXT;
+  CREATE INDEX IF NOT EXISTS receipts_by_person ON receipts (person, at);
   `
 ]
 
@@ -1266,13 +1271,25 @@ export class Db {
 
   // ---------- receipts ----------
 
-  addReceipt(r: Receipt & { messageId: string; agentId: string; engine: string; at: number; work?: string }): void {
+  addReceipt(r: Receipt & { messageId: string; agentId: string; engine: string; at: number; work?: string; person?: string }): void {
     this.db
       .prepare(
-        `INSERT INTO receipts (message_id, agent_id, engine, model, input_tokens, cache_read_tokens, output_tokens, ms, api_cost_usd, at, work)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO receipts (message_id, agent_id, engine, model, input_tokens, cache_read_tokens, output_tokens, ms, api_cost_usd, at, work, person)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(r.messageId, r.agentId, r.engine, r.model, r.inputTokens, r.cacheReadTokens, r.outputTokens, r.ms, r.apiCostUsd ?? null, r.at, r.work ?? null)
+      .run(r.messageId, r.agentId, r.engine, r.model, r.inputTokens, r.cacheReadTokens, r.outputTokens, r.ms, r.apiCostUsd ?? null, r.at, r.work ?? null, r.person ?? null)
+  }
+
+  // Counted tokens per person whose requests the agents worked on, from `since` (to `until`), biggest first.
+  costByPerson(since: number, until = Number.MAX_SAFE_INTEGER): { person: string; tokens: number; replies: number; agents: string[] }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT person, ROUND(SUM(${COUNTED})) AS tokens, COUNT(DISTINCT message_id) AS replies, GROUP_CONCAT(DISTINCT agent_id) AS agents
+           FROM receipts WHERE person IS NOT NULL AND at >= ? AND at < ? GROUP BY person ORDER BY tokens DESC`
+        )
+        .all(since, until) as Row[]
+    ).map((r) => ({ person: str(r['person']), tokens: Number(r['tokens']), replies: Number(r['replies']), agents: str(r['agents']).split(',') }))
   }
 
   // Every receipt since `since`, oldest first: agent replies, and the router's and memory's turns.

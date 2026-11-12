@@ -365,7 +365,7 @@ describe('Runner', () => {
     await r.send('d1', 'oi')
     await r.idle()
     // In what to do, with the CLI's own words kept as the detail.
-    expect(agentMessages()[0]?.run).toMatchObject({ status: 'failed', error: 'Seu plano do Claude Code chegou no limite. Tente de novo mais tarde.', errorDetail: 'usage limit reached' })
+    expect(agentMessages()[0]?.run).toMatchObject({ status: 'failed', error: 'Seu plano do Claude Code chegou no limite. Tento de novo sozinho quando o limite do plano voltar.', errorDetail: 'usage limit reached' })
   })
 })
 

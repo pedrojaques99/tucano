@@ -237,7 +237,7 @@ export interface RunnerDeps {
   computers?: Pick<Computers, 'call'> & Partial<Pick<Computers, 'mac' | 'unavailable'>> // without it, no agent has a computer
   browser?: Pick<Browser, 'call' | 'approved'> // without it, no agent has a browser
   apps?: Pick<DesktopApps, 'call' | 'approved'> // without it, no agent uses the person's apps
-  routines?: Pick<Routines, 'schedule' | 'cancel' | 'forAgent'> // without it, agents can't schedule
+  routines?: Pick<Routines, 'schedule' | 'cancel' | 'forAgent'> & Partial<Pick<Routines, 'hold'>> // without it, agents can't schedule
   notify?: (title: string, body: string, conversationId?: string, kind?: 'approval' | 'question' | 'done', threadId?: string, to?: string[]) => void // threadId: a click opens that thread too; to: the people it's for (unset: everyone who sees the conversation)
   jev?: { key(): Promise<string | undefined>; fetch?: typeof fetch } // the TypeSafe router, when chosen in settings
   onBusy?: (busy: boolean) => void // some reply is running (the Mac shouldn't sleep) or none is
@@ -323,7 +323,15 @@ export interface RoutineEvent {
 // A routed reply that had nothing to add: "[passo]" (or "[pass]") and nothing else.
 export const isPass = (text: string): boolean => /^\[?\s*(passo|pass|passa)\s*\]?\.?$/i.test(text.trim())
 
-type ReplyOpts = { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean; threadId?: string; trigger?: string; replyTo?: string; routed?: boolean; handBackTo?: string; handedBack?: boolean }
+// What makes two alerts the same: their words, without numbers, times and spacing.
+export const alertSig = (text: string): string => text.toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 400)
+const REPEAT_WINDOW_MS = 24 * 60 * 60_000
+const CATCH_UP_EVERY_MS = 30 * 60_000
+const CATCH_UP_FOR_MS = 24 * 60 * 60_000
+const CATCH_UP_TRIES = 48
+
+// `catchUp`: a reply that failed when the plan ran out, tried again once it's back: it looks at what happened since.
+type ReplyOpts = { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean; threadId?: string; trigger?: string; replyTo?: string; routed?: boolean; handBackTo?: string; handedBack?: boolean; catchUp?: boolean }
 type Control = { ctl: AbortController; msg: Message; reason?: 'stopped' | 'limit' | 'budget' | 'loop' | 'errors' | 'stall' | 'computer' | 'sleeping' }
 
 // A routed reply's transcript: what came before its message, the replies since to what was before
@@ -639,6 +647,34 @@ export class Runner {
     this.enqueue(() => this.execute(agent, conv, { depth: msg.run!.depth ?? 1, existing: msg }), true)
   }
 
+  // Catch-up after the plan's limit: a reply that failed because the plan ran out tries again once the plan's
+  // window resets (when the CLI said when; otherwise every half hour), for up to a day. Again, it first looks at
+  // what happened meanwhile: someone may have solved it, and then it says so in a line, or passes.
+  private quotaWaits = new Map<string, { timer: ReturnType<typeof setTimeout>; tries: number; since: number }>()
+  private awaitQuota(messageId: string, settings: Settings): void {
+    const prev = this.quotaWaits.get(messageId)
+    if (prev) clearTimeout(prev.timer)
+    const tries = (prev?.tries ?? 0) + 1
+    const since = prev?.since ?? Date.now()
+    if (tries > CATCH_UP_TRIES || Date.now() - since > CATCH_UP_FOR_MS) return void this.quotaWaits.delete(messageId)
+    const resets = settings.quota?.fiveHour?.resetsAt
+    const wait = resets && resets > Date.now() ? resets - Date.now() + 60_000 : CATCH_UP_EVERY_MS
+    const timer = setTimeout(() => this.catchUp(messageId), Math.min(wait, CATCH_UP_EVERY_MS * 12))
+    timer.unref?.()
+    this.quotaWaits.set(messageId, { timer, tries, since })
+  }
+
+  private catchUp(messageId: string): void {
+    const { db } = this.deps
+    const msg = db.message(messageId)
+    if (!msg?.run?.waitsQuota || msg.run.status !== 'failed' || msg.author.kind !== 'agent') return void this.quotaWaits.delete(messageId)
+    if (this.paused) return void this.awaitQuota(messageId, { quota: undefined } as Settings) // paused: look again later
+    const agent = db.agent(msg.author.id)
+    const conv = db.conversation(msg.conversationId)
+    if (!agent || agent.archived || !conv) return void this.quotaWaits.delete(messageId)
+    this.enqueue(() => this.execute(agent, conv, { depth: msg.run!.depth ?? 1, existing: msg, catchUp: true }))
+  }
+
   // A reply paused at its budget goes on in a new reply that knows what it did:
   // its text is in the transcript, and its steps go in the task.
   async continue(messageId: string): Promise<void> {
@@ -693,10 +729,38 @@ export class Runner {
 
     return new Promise((resolve) =>
       this.enqueue(() =>
-        this.execute(agent, conv, { depth: 1, task: this.routineTask(r, when, me), work: event ? workIn(event.title) : undefined, routine: true }).then(resolve, (e: unknown) => {
-          resolve(undefined)
-          throw e
-        })
+        this.execute(agent, conv, { depth: 1, task: this.routineTask(r, when, me), work: event ? workIn(event.title) : undefined, routine: true }).then(
+          (m) => (this.brake(r, m), resolve(m)),
+          (e: unknown) => {
+            resolve(undefined)
+            throw e
+          }
+        )
+      )
+    )
+  }
+
+  // The autonomy brake for alerts: a routine that says the same thing again (a check that keeps finding the
+  // same failure, a trigger that keeps firing) folds the repeat, and at the third in a day pauses itself and
+  // says so, instead of filling the channel. Numbers and times don't count as a difference.
+  private repeats = new Map<string, { sig: string; count: number; since: number }>()
+  private brake(r: Routine, msg: Message | undefined): void {
+    if (!msg?.run || msg.run.status !== 'done' || !msg.text.trim()) return
+    const sig = alertSig(msg.text)
+    const now = Date.now()
+    const prev = this.repeats.get(r.id)
+    const same = !!prev && prev.sig === sig && now - prev.since < REPEAT_WINDOW_MS
+    const count = same ? prev!.count + 1 : 1
+    this.repeats.set(r.id, { sig, count, since: same ? prev!.since : now })
+    if (count < 2) return
+    this.update(msg, { run: { ...msg.run, repeated: count } })
+    if (count < 3 || !this.deps.routines?.hold?.(r.id)) return
+    this.post(
+      msg.conversationId,
+      msg.threadId,
+      L(
+        `Pausei a rotina **${r.name}**: deu o mesmo resultado ${count} vezes em menos de um dia. Quando quiser, ligue de novo em Rotinas.`,
+        `I paused the routine **${r.name}**: it gave the same result ${count} times in less than a day. Turn it back on in Routines whenever you want.`
       )
     )
   }
@@ -2141,7 +2205,7 @@ ${note}`,
       builderGuide: proposes ? [builderGuide({ tuca: helps, me: settings.workspaceName }), helps && helperSection()].filter(Boolean).join('\n\n') : undefined
     }
     const system = systemPrompt(promptOpts)
-    const live = liveContext({ ...promptOpts, mayPass: !!(opts.routed || opts.handedBack), handedBack: !!opts.handedBack })
+    const live = liveContext({ ...promptOpts, mayPass: !!(opts.routed || opts.handedBack || opts.catchUp), handedBack: !!opts.handedBack, catchUp: !!opts.catchUp })
     const { blocks, blockOf } = transcriptBlocks({ agent, conversation: conv, messages: history, agents: db.agents(), me: settings.workspaceName, people: named, routineOwner: scheduledBy, task, summary, images: names, thread, before: above, files: fileNames, searchable: canSeekThreads, unix: exposed.size > 0, live, ...(anchor && history.at(-1)?.id === anchor.id ? { answering: anchor } : {}) })
     const images: TurnImage[] = fresh
       .slice(-MAX_TURN_IMAGES)
@@ -2269,7 +2333,7 @@ ${note}`,
       : progress.tokens > 0
         ? { model: modelId, ms, inputTokens: progress.tokens, cacheReadTokens: progress.cacheRead, outputTokens: 0 } // partial: what the stream reported before it ended
         : undefined
-    if (receipt) db.addReceipt({ ...receipt, messageId: msg.id, agentId: agent.id, engine: engineId, at: Date.now(), work })
+    if (receipt) db.addReceipt({ ...receipt, messageId: msg.id, agentId: agent.id, engine: engineId, at: Date.now(), work, person: requester.id })
     const usedNow = db.usedThisMonth(agent.id)
     // Only an agent with a ceiling has a share of it to warn about.
     if (Number.isFinite(ceiling) && used < ceiling * USAGE_ALERT && usedNow >= ceiling * USAGE_ALERT && usedNow < ceiling) {
@@ -2335,7 +2399,7 @@ ${note}`,
       // Streamed text keeps every model call of the turn; the final result may hold only the last one.
       const final = msg.text.trim() ? msg.text.trim() : result.text.trim() ? result.text : (narration ?? '') // said it all before its last tool
       // Picked by the router (or hearing back) with nothing to add: it stays quiet, and calls no one.
-      if ((opts.routed || opts.handedBack) && !question && !approval && isPass(final)) {
+      if ((opts.routed || opts.handedBack || opts.catchUp) && !question && !approval && isPass(final)) {
         save({ text: '', run: { ...base, status: 'done', passed: true, steps: closeThinking('done', L('Passou: nada a acrescentar', 'Passed: nothing to add')) } })
         const spent = db.agent(agent.id) // its usage went up all the same
         if (spent) emit({ type: 'agent', agent: spent })
@@ -2370,7 +2434,20 @@ ${note}`,
     } else {
       // What happened and what to do; the CLI's own words go folded under it.
       const failure = error === null ? { text: L('O motor terminou sem resposta.', 'The engine ended without a reply.') } : friendly(thrown ?? error, { engine: ENGINES[engineId].label, doing: L('responder', 'replying') })
-      save({ run: { ...base, ...again, status: 'failed', steps: closeThinking('error', L('Falhou', 'Failed')), error: failure.text, ...(failure.detail ? { errorDetail: failure.detail } : {}) } })
+      // The plan ran out and no reserve could take it: it tries again by itself once the plan is back.
+      const quota = !!error && outOfQuota(error) && !opts.routine
+      save({
+        run: {
+          ...base,
+          ...again,
+          status: 'failed',
+          steps: closeThinking('error', L('Falhou', 'Failed')),
+          error: quota ? `${failure.text.replace(/\s*(Tente de novo mais tarde|Try again later)\.$/, '')} ${L('Tento de novo sozinho quando o limite do plano voltar.', "I'll try again by myself when the plan's limit is back.")}` : failure.text,
+          ...(failure.detail ? { errorDetail: failure.detail } : {}),
+          ...(quota ? { waitsQuota: true } : {})
+        }
+      })
+      if (quota) this.awaitQuota(msg.id, settings)
     }
     // Stopped short on its own (a loop, the limit, a failure): you'd want to know. Not when you stopped it.
     const st = msg.run?.status

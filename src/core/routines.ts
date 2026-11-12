@@ -370,6 +370,14 @@ export class Routines {
   }
 
   // An archived agent's routines stop; turning one back on is up to me.
+  // One routine off (the autonomy brake: the same alert again and again). It stays as it is, to turn back on.
+  hold(id: string): boolean {
+    const r = this.deps.db.routine(id)
+    if (!r?.enabled) return false
+    this.store({ ...r, enabled: false, nextAt: undefined })
+    return true
+  }
+
   pauseAgent(agentId: string): void {
     for (const r of this.deps.db.routines()) if (r.agentId === agentId && r.enabled) this.store({ ...r, enabled: false, nextAt: undefined })
   }

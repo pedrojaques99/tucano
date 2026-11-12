@@ -470,7 +470,7 @@ const MessageRow = memo(function MessageRow({ message, grouped, replies }: { mes
   const name = agent ? agent.name : (other ?? me.name)
   return (
     // Someone else's message reads like any other voice in the conversation: on the left, with their name.
-    <article className={`msg ${agent ? 'msg--agent' : other ? 'msg--agent msg--person' : 'msg--me'} ${grouped ? 'msg--grouped' : ''} ${threadOpen ? 'is-thread-open' : ''}`} data-id={message.id}>
+    <article className={`msg ${agent ? 'msg--agent' : other ? 'msg--agent msg--person' : 'msg--me'} ${grouped ? 'msg--grouped' : ''} ${threadOpen ? 'is-thread-open' : ''} ${message.run?.repeated ? 'msg--repeated' : ''}`} data-id={message.id}>
       <div className="msg__gutter">
         {!grouped &&
           (agent ? (
@@ -500,6 +500,10 @@ const MessageRow = memo(function MessageRow({ message, grouped, replies }: { mes
           </div>
         )}
         {message.run?.status === 'working' && <RunSteps message={message} />}
+        {message.run?.repeated && (
+          // A routine's reply that said the same as the last: folded, with how many times in a row.
+          <span className="msg__repeat">{L(`Igual à anterior · ${message.run.repeated}ª vez seguida`, `Same as the last one · ${message.run.repeated} times in a row`)}</span>
+        )}
         {text ? (
           <div className="md">
             {agent && message.run?.status !== 'working' ? (

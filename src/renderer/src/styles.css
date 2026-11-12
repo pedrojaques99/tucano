@@ -12881,3 +12881,16 @@ button.agent-card__now:hover {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* A routine's repeated alert (the autonomy brake): folded to two lines, with a note. */
+.msg--repeated .msg__body > .md {
+  max-height: 3.2em;
+  overflow: hidden;
+  opacity: 0.6;
+}
+.msg__repeat {
+  display: inline-block;
+  margin: 2px 0 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}

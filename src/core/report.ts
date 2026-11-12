@@ -85,5 +85,7 @@ export function report(db: Db, now = Date.now(), week = weekStart(now)): Report 
       }
     })
 
-  return { since: week, until, agents, skills, work: db.costByWork(week, until) }
+  // With a team, how much each person's requests used; alone, it would only repeat the total.
+  const people = db.people().length > 1 ? db.costByPerson(week, until) : undefined
+  return { since: week, until, agents, skills, work: db.costByWork(week, until), ...(people?.length ? { people } : {}) }
 }

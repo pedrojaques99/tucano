@@ -165,8 +165,8 @@ export function systemPrompt(opts: PromptOpts): string {
 // What changes on its own between replies: it goes at the top of the transcript, and a kept session
 // gets it again (whole, after what it already has) only when it changed, so a new memory or a page
 // in the wiki doesn't end every agent's session. '' when there's nothing.
-export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'offline' | 'routines' | 'skills' | 'builder' | 'wiki' | 'people'> & { mayPass?: boolean; handedBack?: boolean }): string {
-  const { settings, memories, offline, routines, skills, builder, wiki, people, mayPass, handedBack } = opts
+export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'offline' | 'routines' | 'skills' | 'builder' | 'wiki' | 'people'> & { mayPass?: boolean; handedBack?: boolean; catchUp?: boolean }): string {
+  const { settings, memories, offline, routines, skills, builder, wiki, people, mayPass, handedBack, catchUp } = opts
   const me = settings.workspaceName || L('o usuário', 'the user')
   const parts = [
     builder,
@@ -188,6 +188,11 @@ export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'of
         '## Suas rotinas\nPedidos agendados que você roda sozinho. Pra mudar ou apagar, use agendar_rotina com substitui, ou cancelar_rotina.',
         '## Your routines\nScheduled requests you run on your own. To change or delete one, use agendar_rotina with substitui, or cancelar_rotina.'
       )}\n${routines.map((r) => `- [${r.id}] ${r.name}: ${describeSchedule(r.schedule).toLowerCase()} · ${r.prompt.replace(/\s+/g, ' ').slice(0, 160)}`).join('\n')}`,
+    catchUp &&
+      L(
+        '## Você voltou depois do limite do plano\nEsta resposta falhou quando o plano acabou, e agora ele voltou. Antes de responder, leia o que aconteceu na conversa desde a mensagem: se alguém (uma pessoa ou outro agente) já resolveu, diga isso em uma frase ou responda só [passo]. Se ainda falta, faça.',
+        "## You're back after the plan's limit\nThis reply failed when the plan ran out, and now it's back. Before replying, read what happened in the conversation since the message: if someone (a person or another agent) already solved it, say so in one sentence or reply only [pass]. If it's still to do, do it."
+      ),
     handedBack &&
       L(
         '## O repasse voltou\nVocê repassou um pedido a um colega e ele acabou de responder (a última mensagem). Feche o ciclo: continue o que você estava fazendo com o resultado, ou diga em uma frase que ficou resolvido.',

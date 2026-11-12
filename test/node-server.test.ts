@@ -1,0 +1,84 @@
+// This computer as a node of a server's Tucano: an MCP server over HTTP that only answers its key, and
+// runs the server's calls here, as the person (docs/plan-local-node.md). Through a real MCP client.
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { Db } from '../src/core/db'
+import { MacComputer } from '../src/core/mac'
+import { NODE_BASH, NODE_TOOLS, NodeServer } from '../src/core/node-server'
+import { shellActions } from '../src/shared/actions'
+import { ConnectorManager } from '../src/core/connectors'
+import { plainCipher, Secrets } from '../src/core/secrets'
+
+let dir: string
+let db: Db
+let node: NodeServer
+const KEY = 'k'.repeat(48)
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'tucano-node-'))
+  db = new Db(join(dir, 'test.db'))
+  node = new NodeServer(new MacComputer({ db, dataDir: dir, emit: () => {}, env: async () => process.env }))
+})
+afterEach(async () => {
+  await node.stop()
+  db.close()
+})
+
+const client = async (port: number, key: string): Promise<Client> => {
+  const c = new Client({ name: 'server', version: '1' })
+  await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${key}` } } }))
+  return c
+}
+const text = (r: unknown): string => ((r as { content: { type: string; text?: string }[] }).content.find((b) => b.type === 'text')?.text ?? '')
+
+describe('this computer as a node', () => {
+  it("lists its tools and runs the server's calls here: a command, a file written and read back", async () => {
+    const port = await node.start({ port: 0, key: KEY })
+    const c = await client(port, KEY)
+    const { tools } = await c.listTools()
+    expect(tools.map((t) => t.name).sort()).toEqual([...NODE_TOOLS].sort())
+    expect(tools.find((t) => t.name === 'node_read_file')?.annotations?.readOnlyHint).toBe(true)
+
+    const ran = await c.callTool({ name: NODE_BASH, arguments: { command: 'echo oi-do-no' } })
+    expect(ran.isError).toBeFalsy()
+    expect(text(ran)).toContain('oi-do-no')
+
+    const file = join(dir, 'pasta', 'nota.txt')
+    expect((await c.callTool({ name: 'node_write_file', arguments: { path: file, content: 'linha um' } })).isError).toBeFalsy()
+    expect(text(await c.callTool({ name: 'node_read_file', arguments: { path: file } }))).toContain('linha um')
+    expect(text(await c.callTool({ name: 'node_list', arguments: { path: join(dir, 'pasta') } }))).toContain('nota.txt')
+    await c.close()
+  })
+
+  it('answers only its key, and stops answering when turned off', async () => {
+    const port = await node.start({ port: 0, key: KEY })
+    await expect(client(port, 'wrong')).rejects.toThrow()
+    await expect(client(port, '')).rejects.toThrow()
+    await node.stop()
+    expect(node.running).toBe(false)
+    await expect(client(port, KEY)).rejects.toThrow()
+  })
+
+  it('a command on a node is judged like one on this computer: reading asks nothing, a push is a push', () => {
+    expect(shellActions('git status && ls -la')).toEqual([])
+    expect(shellActions('git push origin main')).toContain('push')
+  })
+
+  it("is a connector like any other for a server's Tucano: added with its key, its tools listed, a command run", async () => {
+    const port = await node.start({ port: 0, key: KEY })
+    const server = new Db(join(dir, 'server.db'))
+    const connectors = new ConnectorManager({ db: server, secrets: new Secrets(server, plainCipher), emit: () => {}, openUrl: () => {}, oauthCallbackUrl: () => 'http://127.0.0.1:1/cb' })
+    const id = await connectors.add({ name: 'Windows do Jaques', kind: 'remote', url: `http://127.0.0.1:${port}/mcp`, auth: 'token', token: KEY })
+    await connectors.connect(id)
+    expect(connectors.get(id)!.status).toBe('connected')
+    expect(connectors.get(id)!.tools.map((t) => t.name)).toContain(NODE_BASH)
+    const r = await connectors.call(id, NODE_BASH, { command: 'echo pelo-servidor' })
+    expect(text(r)).toContain('pelo-servidor')
+    await connectors.closeAll()
+    server.close()
+  })
+})

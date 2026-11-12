@@ -1,6 +1,6 @@
 // The contract between the renderer and the core, carried over a MessagePort.
 import type { Answer } from './questions'
-import type { BackupSummary, WikiChange, WikiGitSetup, WikiGitStatus, WikiGitTest, WikiHit, WikiPage, WikiImport, WikiPageInfo, WikiReview, WikiSource, WikiVersion } from './types'
+import type { BackupSummary, WikiChange, WikiGitSetup, WikiGitStatus, WikiGitTest, WikiHit, WikiPage, WikiImport, WikiPageInfo, WikiReview, WikiSource, WikiVersion, NodeInfo } from './types'
 import type { AppProvider, CatalogCategory, CatalogView, OwnAppGuide } from './connector-catalog'
 import type { Os, Account, AccountEngine, ActivityEntry, Device, Inbox, Agent, BrowserInput, Approval, Artifact, ImageUpload, FileUpload, BrowserView, ComputerInfo, Connector, ConnectorInput, ConnectorTool, HarnessMcp, Conversation, EngineId, Invite, Memory, Person, Role, MemoryScope, Message, Routine, RoutineInput, Report, Settings, SetupState, LoginKey, LoginScreen, LocalSkill, Skill, SkillInput, SkillVersion, Trigger, UsageReport, LocalInfo, VoiceModelId, VoiceStatus, ProposalsResult } from './types'
 
@@ -120,6 +120,9 @@ export interface Api {
   openExternal(p: { url: string }): void
   saveRoutine(p: { routine: RoutineInput }): Routine // throws a message for the form
   setJevKey(p: { key: string | null }): Promise<void> // checks the key with TypeSafe; throws why it's refused
+  nodeInfo(): Promise<NodeInfo> // this computer as a node of a server (core/node-server.ts)
+  setNode(p: { on: boolean; port?: number }): Promise<NodeInfo>
+  rotateNodeKey(): Promise<NodeInfo> // a new key: the server's connector needs it again
   engineModels(p: { engine: EngineId }): Promise<{ models: string[]; labels?: Record<string, { label: string; hint?: string }>; error?: string }> // a harness's own list (OpenCode, Pi, a gateway)
   testEngine(p: { model: string }): Promise<{ ok: boolean; message: string; seconds?: number }> // one real reply through that model
   saveSkill(p: { skill: SkillInput }): Skill // throws a message for the form

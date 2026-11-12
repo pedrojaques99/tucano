@@ -8,6 +8,7 @@ import { Card } from './Pages'
 import { Icon, Toggle } from './ui'
 import { AppsCard } from './Apps'
 import { call } from '../rpc'
+import { updateSettings, useStore } from '../store'
 import type { NodeInfo } from '../../../shared/types'
 
 type Server = { id: string; name: string; origin: string; open: boolean }
@@ -163,6 +164,9 @@ export function NodeCard(): ReactNode {
   const [info, setInfo] = useState<NodeInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Once the agents live on the server, the ones here would answer and run routines a second time.
+  const paused = useStore((s) => !!s.settings.paused)
+  const running = useStore((s) => s.routines.filter((r) => r.enabled).length)
   useEffect(() => {
     void call('nodeInfo').then(setInfo, () => {})
   }, [])
@@ -179,6 +183,19 @@ export function NodeCard(): ReactNode {
       action={<Toggle on={info.on} disabled={busy} label={L('Este computador como nó', 'This computer as a node')} onChange={(on) => run(call('setNode', { on }))} />}
     >
       {info.error && <p className="field__error">{info.error}</p>}
+      {info.on && !paused && (
+        // No duplicates: the agents and routines that moved to the server stop here. The node keeps serving.
+        <div className="node-card__twice">
+          <span>
+            {running
+              ? L(`${running} ${running === 1 ? 'rotina ligada roda' : 'rotinas ligadas rodam'} também aqui. Se os agentes moram no servidor, pause este computador pra nada rodar duas vezes; ele continua emprestando terminal, arquivos e apps.`, `${running} enabled ${running === 1 ? 'routine runs' : 'routines run'} here too. If the agents live on the server, pause this computer so nothing runs twice; it keeps lending its terminal, files and apps.`)
+              : L('Se os agentes moram no servidor, pause este computador pra nada responder duas vezes; ele continua emprestando terminal, arquivos e apps.', 'If the agents live on the server, pause this computer so nothing answers twice; it keeps lending its terminal, files and apps.')}
+          </span>
+          <button className="btn btn--sm" onClick={() => updateSettings({ paused: true })}>
+            {L('Pausar este computador', 'Pause this computer')}
+          </button>
+        </div>
+      )}
       {info.on && info.running && (
         <div className="node-card">
           <div className="node-card__row">

@@ -180,6 +180,7 @@ export type RunStatus = 'working' | 'waiting_input' | 'waiting_approval' | 'done
 
 export interface Run {
   status: RunStatus
+  passed?: boolean // picked by the router (not by name), it had nothing to add: it stays quiet, out of the conversation
   steps: Step[]
   endedAt?: number // when this reply ended, however it ended: where the conversation shows it (saidAt)
   receipt?: Receipt

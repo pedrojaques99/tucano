@@ -66,7 +66,7 @@ const nodeAgent = (apps: AgentApp[] = []): Agent => ({ id: 'node', name: 'node',
 // (Premiere, Figma desktop…), its browser and the apps the person lends it. Each optional (tests, a plain node).
 export interface NodeReach {
   connectors?: {
-    list(): { id: string; name: string; status: ConnectorStatus }[]
+    list(): { id: string; name: string; status: ConnectorStatus; kind?: 'remote' | 'stdio'; url?: string; command?: string }[]
     tools(id: string): (ConnectorTool & { inputSchema: Record<string, unknown> })[]
     call(id: string, name: string, args: Record<string, unknown>): Promise<CallToolResult>
   }
@@ -80,6 +80,20 @@ export interface NodeReach {
     call(agent: Agent, name: string, args: Record<string, unknown>): Promise<AppOutcome>
     approved(agent: Agent, args: Record<string, unknown>): { ok: boolean; text: string }
     lent(): AgentApp[] // the apps the person lends the node, each to read or to read and change
+  }
+}
+
+// Whether a connector exists only on this computer, so only the node can lend it: one that runs a command
+// here, or a server on this machine (Figma desktop's 127.0.0.1:3845). A remote one (Linear, Vercel…) the
+// server reaches by itself, and lending it too would show the agent each tool twice. Nor the bridge that
+// ships with Tucano: the server runs its own.
+export function onlyHere(c: { kind?: 'remote' | 'stdio'; url?: string; command?: string }): boolean {
+  if (c.kind === 'stdio') return c.command !== 'tucano'
+  try {
+    const host = new URL(c.url ?? '').hostname.replace(/^\[|\]$/g, '')
+    return host === 'localhost' || host === '::1' || host.startsWith('127.') || host.endsWith('.local')
+  } catch {
+    return false
   }
 }
 
@@ -139,7 +153,7 @@ export class NodeServer {
     const taken = new Set<string>()
     return c
       .list()
-      .filter((x) => x.status === 'connected')
+      .filter((x) => x.status === 'connected' && onlyHere(x))
       .flatMap((x) => {
         let prefix = slug(x.name)
         for (let i = 2; taken.has(prefix); i++) prefix = `${slug(x.name)}_${i}`

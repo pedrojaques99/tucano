@@ -94,7 +94,7 @@ export const SHAPES: Record<Method, Record<string, string>> = {
   saveRoutine: { routine: 'o' },
   setJevKey: { key: 's|null' },
   nodeInfo: {},
-  setNode: { on: 'b', port: 'n?' },
+  setNode: { on: 'b', port: 'n?', apps: 'a?' },
   rotateNodeKey: {},
   engineModels: { engine: 's' },
   testEngine: { model: 's' },

@@ -13648,3 +13648,9 @@ button.agent-card__now:hover {
   padding-left: 18px;
   color: var(--text-2);
 }
+
+.node-card__apps {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}

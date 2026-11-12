@@ -475,7 +475,7 @@ export interface Settings {
   channelLayout?: ChannelLayout // the person's order and groups in the sidebar
   orgLayout?: Record<string, { x: number; y: number }> // the organogram's cards placed by hand (an agent's id, or 'me'); unset: laid out on its own
   agentLayout?: ChannelLayout // the same, for the agents
-  node?: { on: boolean; port: number } // this computer as a node of a server's Tucano (core/node-server.ts)
+  node?: { on: boolean; port: number; apps?: AgentApp[] } // this computer as a node of a server's Tucano (core/node-server.ts), and the apps it lends
   dmLayout?: ChannelLayout // the same, for the direct messages
   browserJev?: boolean // Jev finds what agents click in their browsers (each click sends the page to TypeSafe)
   memoryModel: string // summarizes conversations and extracts memories
@@ -1105,6 +1105,7 @@ export interface NodeInfo {
   on: boolean
   running: boolean
   port: number
+  apps: AgentApp[] // the apps the node lends the server's agents
   key?: string
   error?: string // why it couldn't listen (the port is taken)
 }

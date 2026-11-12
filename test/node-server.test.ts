@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Db } from '../src/core/db'
 import { MacComputer } from '../src/core/mac'
-import { NODE_BASH, NODE_TOOLS, NodeServer } from '../src/core/node-server'
+import { NODE_APPROVED, NODE_BASH, NODE_TOOLS, NodeServer, type NodeReach } from '../src/core/node-server'
 import { shellActions } from '../src/shared/actions'
 import { ConnectorManager } from '../src/core/connectors'
 import { plainCipher, Secrets } from '../src/core/secrets'
@@ -80,5 +80,65 @@ describe('this computer as a node', () => {
     expect(text(r)).toContain('pelo-servidor')
     await connectors.closeAll()
     server.close()
+  })
+
+  it("offers this computer's connectors, browser and lent apps, each tool in the class the server asks by", async () => {
+    const calls: string[] = []
+    const approved: Record<string, unknown>[] = []
+    const reach: NodeReach = {
+      connectors: {
+        list: () => [
+          { id: 'p', name: 'Premiere Pro', status: 'connected' },
+          { id: 'x', name: 'Off', status: 'error' }
+        ],
+        tools: () => [
+          { name: 'export_sequence', description: 'Exports', inputSchema: { type: 'object', properties: { id: { type: 'string' } } }, cls: 'write', enabled: true, highRisk: false, isNew: false },
+          { name: 'project_info', description: 'Reads', inputSchema: { type: 'object' }, cls: 'read', enabled: true, highRisk: false, isNew: false },
+          { name: 'delete_project', description: 'Deletes', inputSchema: { type: 'object' }, cls: 'sensitive', enabled: true, highRisk: false, isNew: false },
+          { name: 'hidden', description: 'Off', inputSchema: { type: 'object' }, cls: 'read', enabled: false, highRisk: false, isNew: false }
+        ],
+        call: async (id, name) => (calls.push(`${id}:${name}`), { content: [{ type: 'text', text: `ran ${name}` }] })
+      },
+      browser: {
+        tools: () => [
+          { name: 'navegador_ler', description: 'Reads the page', inputSchema: { type: 'object' } },
+          { name: 'navegador_clicar', description: 'Clicks', inputSchema: { type: 'object' } }
+        ],
+        call: async (_a, name) =>
+          name === 'navegador_clicar'
+            ? { result: { content: [{ type: 'text', text: 'waits' }] }, approval: { args: { alvo: 'Comprar' }, why: 'compra', detail: 'Comprar' } }
+            : { result: { content: [{ type: 'text', text: 'page text' }] } },
+        approved: async (_a, args) => (approved.push(args), { ok: true, text: 'Clicou em Comprar.' })
+      },
+      apps: { tools: () => [], call: async () => ({ result: { content: [] } }), approved: () => ({ ok: true, text: '' }), lent: () => [] }
+    }
+    const rich = new NodeServer(new MacComputer({ db, dataDir: dir, emit: () => {}, env: async () => process.env }), reach)
+    const port = await rich.start({ port: 0, key: KEY })
+    const c = await client(port, KEY)
+    const { tools } = await c.listTools()
+    const byName = new Map(tools.map((t) => [t.name, t]))
+    expect(byName.get('premiere_pro__export_sequence')?.annotations).toEqual({ readOnlyHint: false })
+    expect(byName.get('premiere_pro__project_info')?.annotations?.readOnlyHint).toBe(true)
+    expect(byName.get('premiere_pro__delete_project')?.annotations?.destructiveHint).toBe(true)
+    expect(byName.has('premiere_pro__hidden')).toBe(false) // turned off on this computer
+    expect([...byName.keys()].some((n) => n.startsWith('off__'))).toBe(false) // not connected
+    expect(byName.get('navegador_ler')?.annotations?.readOnlyHint).toBe(true)
+    expect(byName.get('navegador_clicar')?.annotations?.readOnlyHint).toBe(false)
+    expect(byName.get(NODE_APPROVED)?.annotations?.destructiveHint).toBe(true) // the server asks before it
+    expect(byName.has('apps_listar')).toBe(false) // no app lent
+
+    expect(text(await c.callTool({ name: 'premiere_pro__export_sequence', arguments: { id: 'seq1' } }))).toBe('ran export_sequence')
+    expect(calls).toEqual(['p:export_sequence'])
+
+    // A risky click waits: the agent is told how to ask, and only the approved call clicks.
+    const risky = await c.callTool({ name: 'navegador_clicar', arguments: { alvo: 'Comprar' } })
+    expect(risky.isError).toBe(true)
+    expect(text(risky)).toContain(NODE_APPROVED)
+    expect(approved).toEqual([])
+    const done = await c.callTool({ name: NODE_APPROVED, arguments: { kind: 'browser', args: { alvo: 'Comprar' } } })
+    expect(text(done)).toBe('Clicou em Comprar.')
+    expect(approved).toEqual([{ alvo: 'Comprar' }])
+    await c.close()
+    await rich.stop()
   })
 })

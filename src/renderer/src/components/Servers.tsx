@@ -6,6 +6,7 @@ import { pairProblem } from '../../../shared/servers'
 import { confirmDialog } from './Dialogs'
 import { Card } from './Pages'
 import { Icon, Toggle } from './ui'
+import { AppsCard } from './Apps'
 import { call } from '../rpc'
 import type { NodeInfo } from '../../../shared/types'
 
@@ -174,7 +175,7 @@ export function NodeCard(): ReactNode {
   return (
     <Card
       title={L('Este computador como nó', 'This computer as a node')}
-      lead={L('Os agentes de um Tucano num servidor usam o terminal e os arquivos deste computador, com a mesma autonomia daqui.', "The agents of a Tucano on a server use this computer's terminal and files, with the same autonomy as here.")}
+      lead={L('Os agentes de um Tucano num servidor usam o terminal, os arquivos, os conectores, o navegador e os apps deste computador, com a mesma autonomia daqui.', "The agents of a Tucano on a server use this computer's terminal, files, connectors, browser and apps, with the same autonomy as here.")}
       action={<Toggle on={info.on} disabled={busy} label={L('Este computador como nó', 'This computer as a node')} onChange={(on) => run(call('setNode', { on }))} />}
     >
       {info.error && <p className="field__error">{info.error}</p>}
@@ -213,6 +214,12 @@ export function NodeCard(): ReactNode {
             <li>{L('No Tucano do servidor: Conectores › Adicionar personalizado › Remoto, com o endereço https://<este-computador>.<sua-rede>.ts.net/mcp e autenticação Token, colando a chave.', "In the server's Tucano: Connectors › Add custom › Remote, with the address https://<this-computer>.<your-tailnet>.ts.net/mcp and Token authentication, pasting the key.")}</li>
             <li>{L('Dê acesso aos agentes que vão usar este computador, em Ferramentas.', 'Give access to the agents that will use this computer, under Tools.')}</li>
           </ol>
+          {/* The apps the server's agents may use here (Premiere, Notes…), each to read or to change: the
+              same picker as an agent's page. Its connectors and browser come with the node on their own. */}
+          <div className="node-card__apps">
+            <span className="field__label">{L('Apps que ele empresta', 'Apps it lends')}</span>
+            <AppsCard apps={info.apps} onChange={(apps) => run(call('setNode', { on: info.on, apps }))} />
+          </div>
         </div>
       )}
     </Card>

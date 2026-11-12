@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Db } from '../src/core/db'
 import { MacComputer } from '../src/core/mac'
-import { NODE_APPROVED, NODE_BASH, NODE_TOOLS, NodeServer, type NodeReach } from '../src/core/node-server'
+import { NODE_APPROVED, NODE_BASH, NODE_TOOLS, NodeServer, onlyHere, type NodeReach } from '../src/core/node-server'
 import { shellActions } from '../src/shared/actions'
 import { ConnectorManager } from '../src/core/connectors'
 import { plainCipher, Secrets } from '../src/core/secrets'
@@ -88,8 +88,10 @@ describe('this computer as a node', () => {
     const reach: NodeReach = {
       connectors: {
         list: () => [
-          { id: 'p', name: 'Premiere Pro', status: 'connected' },
-          { id: 'x', name: 'Off', status: 'error' }
+          { id: 'p', name: 'Premiere Pro', status: 'connected', kind: 'stdio', command: 'node' },
+          { id: 'x', name: 'Off', status: 'error', kind: 'stdio', command: 'node' },
+          { id: 'l', name: 'Linear', status: 'connected', kind: 'remote', url: 'https://mcp.linear.app/mcp' }, // the server has it already
+          { id: 'f', name: 'Figma desktop', status: 'connected', kind: 'remote', url: 'http://127.0.0.1:3845/mcp' }
         ],
         tools: () => [
           { name: 'export_sequence', description: 'Exports', inputSchema: { type: 'object', properties: { id: { type: 'string' } } }, cls: 'write', enabled: true, highRisk: false, isNew: false },
@@ -122,6 +124,8 @@ describe('this computer as a node', () => {
     expect(byName.get('premiere_pro__delete_project')?.annotations?.destructiveHint).toBe(true)
     expect(byName.has('premiere_pro__hidden')).toBe(false) // turned off on this computer
     expect([...byName.keys()].some((n) => n.startsWith('off__'))).toBe(false) // not connected
+    expect([...byName.keys()].some((n) => n.startsWith('linear__'))).toBe(false) // remote: the server reaches it itself
+    expect(byName.has('figma_desktop__export_sequence')).toBe(true) // a server on this machine: only the node has it
     expect(byName.get('navegador_ler')?.annotations?.readOnlyHint).toBe(true)
     expect(byName.get('navegador_clicar')?.annotations?.readOnlyHint).toBe(false)
     expect(byName.get(NODE_APPROVED)?.annotations?.destructiveHint).toBe(true) // the server asks before it
@@ -140,5 +144,13 @@ describe('this computer as a node', () => {
     expect(approved).toEqual([{ alvo: 'Comprar' }])
     await c.close()
     await rich.stop()
+  })
+
+  it('lends only what exists on this computer alone', () => {
+    expect(onlyHere({ kind: 'stdio', command: 'uvx' })).toBe(true)
+    expect(onlyHere({ kind: 'stdio', command: 'tucano' })).toBe(false) // the Figma bridge: the server runs its own
+    expect(onlyHere({ kind: 'remote', url: 'http://127.0.0.1:3845/mcp' })).toBe(true)
+    expect(onlyHere({ kind: 'remote', url: 'http://localhost:9000/mcp' })).toBe(true)
+    expect(onlyHere({ kind: 'remote', url: 'https://mcp.vercel.com/' })).toBe(false)
   })
 })

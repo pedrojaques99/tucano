@@ -13653,3 +13653,11 @@ button.agent-card__now:hover {
 .node-card__twice > span {
   flex: 1 1 260px;
 }
+
+/* The line under an approval's buttons: what "always allow" covers and where it's undone. */
+.approval__always {
+  margin: 8px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}

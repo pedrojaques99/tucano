@@ -214,9 +214,11 @@ describe('Runner', () => {
       const r = runner(lia('@theo, revisa o PR #12?'))
       await r.send('c1', '@lia começa')
       await r.idle()
+      // Theo's answer comes back to Lia once (the hand-off returns), within the chain's cap.
       expect(agentMessages().map((m) => [(m.author as { id: string }).id, m.run?.depth])).toEqual([
         ['a1', 1],
-        ['a2', 2]
+        ['a2', 2],
+        ['a1', 3]
       ])
       expect(steps().some((x) => x.startsWith('Chamou') && x.includes('theo'))).toBe(true)
     })
@@ -228,8 +230,58 @@ describe('Runner', () => {
       const r = runner(lia('Valeu, @theo! Ficou ótimo.'))
       await r.send('c1', '@lia começa')
       await r.idle()
-      expect(agentMessages().map((m) => (m.author as { id: string }).id)).toEqual(['a1', 'a2'])
+      expect(agentMessages().map((m) => (m.author as { id: string }).id)).toEqual(['a1', 'a2', 'a1']) // and it comes back
       expect(steps().some((x) => x.startsWith('Chamou') && x.includes('não consegui avaliar'))).toBe(true)
+    })
+  })
+
+  describe('agents that work together', () => {
+    it('an agent the router picked may pass: its reply stays out of the conversation and calls no one', async () => {
+      const r = runner(fakeEngine('claude', { delayMs: 1, reply: (t) => (t.system.startsWith('Você é lia') ? '[passo]' : 'ok') }))
+      db.saveAgent(agent('a2', 'theo'))
+      await r.send('c1', 'alguém revisa o código do checkout?')
+      await r.idle()
+      const lias = agentMessages().filter((m) => (m.author as { id: string }).id === 'a1')
+      expect(lias).toHaveLength(1)
+      expect(lias[0]!.run?.passed).toBe(true)
+      expect(lias[0]!.text).toBe('')
+    })
+
+    it('an agent called by name never passes: it said what it said', async () => {
+      const r = runner(fakeEngine('claude', { delayMs: 1, reply: () => '[passo]' }))
+      await r.send('c1', '@lia oi')
+      await r.idle()
+      const [reply] = agentMessages()
+      expect(reply?.run?.passed).toBeFalsy()
+      expect(reply?.text).toBe('[passo]')
+    })
+
+    it('a hand-off comes back once, and the one hearing back may pass', async () => {
+      const r = runner(fakeEngine('claude', { delayMs: 1, reply: (t) => (t.system.startsWith('Você é lia') ? (t.prompt.includes('O repasse voltou') ? '[passo]' : '@theo, revisa o PR #12?') : 'Revisado, tudo certo.') }))
+      db.saveAgent(agent('a2', 'theo'))
+      await r.send('c1', '@lia começa')
+      await r.idle()
+      const replies = agentMessages().map((m) => [(m.author as { id: string }).id, m.run?.passed ?? false])
+      expect(replies).toEqual([
+        ['a1', false],
+        ['a2', false],
+        ['a1', true] // heard back, nothing to add
+      ])
+    })
+
+    it("when the router isn't ready, a rule picks who answers: a short reply goes to the agent that asked", async () => {
+      const r = runner(fakeEngine('claude', { delayMs: 1, reply: (t) => (t.system.startsWith('Você é lia') ? 'Posso seguir com o deploy?' : 'ok') }))
+      db.saveAgent(agent('a2', 'theo'))
+      await r.send('c1', '@lia prepara o deploy')
+      await r.idle()
+      settings.routerModel = 'gpt-5.6-luna'
+      settings.engines.codex = { installed: true, loggedIn: false }
+      await r.send('c1', 'sim')
+      await r.idle()
+      const note = db.messages().filter((m) => m.author.kind === 'system').at(-1)!
+      expect(note.text).toContain('**lia**')
+      expect(note.text).toContain('uma regra decidiu')
+      expect(agentMessages().filter((m) => (m.author as { id: string }).id === 'a1')).toHaveLength(2)
     })
   })
 

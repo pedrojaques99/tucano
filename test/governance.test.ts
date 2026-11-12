@@ -460,7 +460,8 @@ describe('pausing and attributing work', () => {
     await r.send('c1', '@lia olha a OAB-65, o lembrete duplica')
     await r.idle()
     const work = db.costByWork(0)
-    expect(work).toEqual([expect.objectContaining({ work: 'OAB-65', replies: 2, agents: expect.arrayContaining(['a1', 'a2']) as string[] })])
+    // Lia's, Theo's, and Lia hearing back from Theo: the hand-off coming back counts toward the issue too.
+    expect(work).toEqual([expect.objectContaining({ work: 'OAB-65', replies: 3, agents: expect.arrayContaining(['a1', 'a2']) as string[] })])
     expect(agentMessages().every((m) => m.run?.work === 'OAB-65')).toBe(true)
   })
 })

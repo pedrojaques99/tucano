@@ -9,13 +9,13 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { homedir, userInfo } from 'node:os'
 import { isLimited, localUrl, resolveLocal, type LocalReach } from './local-paths'
 import { basename, join, resolve, sep } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import type { MessagePortMain } from 'electron'
 import { L, langOf, locale, setLang, type Lang } from '../shared/lang'
 import { errorFor } from '../shared/errors'
 import type { Api, CoreEvent, Method, Params, Request, Wire } from '../shared/rpc'
 import { limitError, paramsError } from '../shared/rpc-shapes'
-import { ACCOUNT_ENGINES, applyOrder, proposalsOf, type Proposal, type ProposalsResult, channelName, ENGINES, inQuietHours, modelInfo, personScope, rememberModels, scopePerson, usable, WEBHOOK_PORT, type Account, type AccountEngine, type Agent, type BrowserReply, type Message, type EngineId, type EngineStatus, type Person, type Routine, type Settings, type WikiChange, type WikiSource } from '../shared/types'
+import { ACCOUNT_ENGINES, applyOrder, proposalsOf, type Proposal, type ProposalsResult, channelName, ENGINES, inQuietHours, modelInfo, personScope, rememberModels, scopePerson, usable, WEBHOOK_PORT, type Account, type AccountEngine, type Agent, type BrowserReply, type Message, type EngineId, type EngineStatus, type Person, type NodeInfo, type Routine, type Settings, type WikiChange, type WikiSource } from '../shared/types'
 import { agentOwner, channelEditError, cleanName, dmOwner, Hub, MAX_NAME, mayEditChannel, nameLongError, nameTakenError, People, routineDetail, stripInvisible, type Purged } from './people'
 import { adminError, admit, admitComputer, can, isAdmin, must } from './policy-people'
 import { cleanRules, isAutonomy } from '../shared/actions'
@@ -69,7 +69,8 @@ import { findOnPath, isWin, loginShell, onPath, openWindowsConsole, osOf, shellC
 import { ChromeBrowsers, hasChrome } from './chrome'
 import { checkFolder, Computers, folderName, type Shooter } from './computer'
 import { Memories } from './memory'
-import { loginEnv } from './mac'
+import { loginEnv, MacComputer } from './mac'
+import { NodeServer } from './node-server'
 import { findLocalSkills } from './local-skills'
 import { Routines } from './routines'
 import { Runner } from './runs'
@@ -799,6 +800,35 @@ gateway.route('/oauth/callback', oauthCallback)
 const memory = new Memories({ db, engines: engineImpls, settings: () => enginesReady.then(settings), emit, workDir: join(dataDir, 'agents') })
 
 const computers = new Computers({ db, dataDir, emit, shoot })
+
+// This computer as a node of a server's Tucano (core/node-server.ts): off until the owner turns it on.
+// Its key is a secret; the port and on/off are settings. Not in server mode: a server is the one calling.
+const NODE_KEY = 'node:key'
+const NODE_PORT = 7441
+const nodeServer = new NodeServer(new MacComputer({ db, dataDir, emit, shoot }))
+let nodeError: string | undefined
+async function nodeKey(fresh = false): Promise<string> {
+  const had = fresh ? undefined : await secrets.get(NODE_KEY)
+  if (had) return had
+  const key = randomBytes(32).toString('base64url')
+  await secrets.set(NODE_KEY, key)
+  return key
+}
+async function nodeInfo(): Promise<NodeInfo> {
+  const n = settings().node ?? { on: false, port: NODE_PORT }
+  return { on: n.on, port: n.port, running: nodeServer.running, key: n.on ? await nodeKey() : undefined, ...(nodeError ? { error: nodeError } : {}) }
+}
+async function applyNode(): Promise<void> {
+  const n = settings().node
+  nodeError = undefined
+  if (!n?.on || serverMode) return nodeServer.stop()
+  try {
+    await nodeServer.start({ port: n.port, key: await nodeKey() })
+  } catch (e) {
+    nodeError = (e as NodeJS.ErrnoException).code === 'EADDRINUSE' ? L(`A porta ${n.port} já está em uso. Escolha outra.`, `Port ${n.port} is already in use. Pick another.`) : String(e)
+  }
+}
+void applyNode().catch((e: unknown) => console.error('[node]', e))
 const backups = join(dataDir, 'backups')
 
 // The runner runs routines, and agents schedule routines through the runner's tools.
@@ -1767,6 +1797,19 @@ const api: Handlers = {
   unpairTelegram: () => void (telegram && bg(telegram.unpair(), 'unpairTelegram')),
 
   // Checked with TypeSafe before it's saved; null removes it.
+  nodeInfo: () => nodeInfo(),
+  setNode: async ({ on, port }) => {
+    const prev = settings().node ?? { on: false, port: NODE_PORT }
+    const next = { on, port: port && port > 1024 && port < 65536 ? Math.round(port) : prev.port }
+    db.setSettings({ node: next })
+    await applyNode()
+    return nodeInfo()
+  },
+  rotateNodeKey: async () => {
+    await nodeKey(true)
+    await applyNode()
+    return nodeInfo()
+  },
   setJevKey: async ({ key }) => {
     const k = key?.trim()
     if (k) await checkJevKey(k)

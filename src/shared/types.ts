@@ -475,6 +475,7 @@ export interface Settings {
   channelLayout?: ChannelLayout // the person's order and groups in the sidebar
   orgLayout?: Record<string, { x: number; y: number }> // the organogram's cards placed by hand (an agent's id, or 'me'); unset: laid out on its own
   agentLayout?: ChannelLayout // the same, for the agents
+  node?: { on: boolean; port: number } // this computer as a node of a server's Tucano (core/node-server.ts)
   dmLayout?: ChannelLayout // the same, for the direct messages
   browserJev?: boolean // Jev finds what agents click in their browsers (each click sends the page to TypeSafe)
   memoryModel: string // summarizes conversations and extracts memories
@@ -1097,6 +1098,15 @@ export interface Skill {
   source?: string // linked to a SKILL.md of the user's Claude Code or Codex: read from there, not edited here
   createdAt: number
   updatedAt: number
+}
+
+// This computer as a node: whether it listens, where, and its key (the owner's, to copy into the server).
+export interface NodeInfo {
+  on: boolean
+  running: boolean
+  port: number
+  key?: string
+  error?: string // why it couldn't listen (the port is taken)
 }
 
 // A skill already on this Mac (Claude Code, its plugins, Codex), that can be linked.

@@ -400,6 +400,8 @@ export function MessageList({ messages: all, replies, older, conversationId, emp
       {loading && <div className="messages__older muted small">{L('Carregando mensagens anteriores…', 'Loading earlier messages…')}</div>}
       {lead}
       {messages.map((m, i) => {
+        // A reply that passed (picked by the router, nothing to add) stays out of the conversation.
+        if (m.run?.passed) return null
         const prev = messages[i - 1]
         const grouped =
           !!prev &&
@@ -1661,6 +1663,8 @@ export function ApprovalCard({ approval, compact }: { approval: Approval; compac
           </button>
         </div>
       )}
+      {/* What "always allow" covers and where it's undone, in one line on the card (not only on hover). */}
+      {!decided && !refusing && canAlways && mayDecide && <p className="approval__always">{alwaysTitle}</p>}
     </div>
   )
 }

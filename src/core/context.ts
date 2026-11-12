@@ -166,8 +166,8 @@ export function systemPrompt(opts: PromptOpts): string {
 // What changes on its own between replies: it goes at the top of the transcript, and a kept session
 // gets it again (whole, after what it already has) only when it changed, so a new memory or a page
 // in the wiki doesn't end every agent's session. '' when there's nothing.
-export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'offline' | 'routines' | 'skills' | 'builder' | 'team' | 'wiki' | 'people'>): string {
-  const { settings, memories, offline, routines, skills, builder, team, wiki, people } = opts
+export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'offline' | 'routines' | 'skills' | 'builder' | 'team' | 'wiki' | 'people'> & { mayPass?: boolean; handedBack?: boolean }): string {
+  const { settings, memories, offline, routines, skills, builder, team, wiki, people, mayPass, handedBack } = opts
   const me = settings.workspaceName || L('o usuário', 'the user')
   const parts = [
     builder,
@@ -190,6 +190,16 @@ export function liveContext(opts: Pick<PromptOpts, 'settings' | 'memories' | 'of
         '## Suas rotinas\nPedidos agendados que você roda sozinho. Pra mudar ou apagar, use agendar_rotina com substitui, ou cancelar_rotina.',
         '## Your routines\nScheduled requests you run on your own. To change or delete one, use agendar_rotina with substitui, or cancelar_rotina.'
       )}\n${routines.map((r) => `- [${r.id}] ${r.name}: ${describeSchedule(r.schedule).toLowerCase()} · ${r.prompt.replace(/\s+/g, ' ').slice(0, 160)}`).join('\n')}`,
+    handedBack &&
+      L(
+        '## O repasse voltou\nVocê repassou um pedido a um colega e ele acabou de responder (a última mensagem). Feche o ciclo: continue o que você estava fazendo com o resultado, ou diga em uma frase que ficou resolvido.',
+        '## The hand-off came back\nYou handed a request to a colleague and they just replied (the last message). Close the loop: go on with what you were doing with the result, or say in one sentence that it is settled.'
+      ),
+    mayPass &&
+      L(
+        '## Você pode passar\nVocê foi chamado sem ser mencionado. Se não tem nada a acrescentar (outro agente já disse o que você diria, ou a mensagem não pede nada de você), responda só [passo] e mais nada: sua resposta não aparece.',
+        "## You may pass\nYou were called without being mentioned. If you have nothing to add (another agent already said what you would, or the message asks nothing of you), reply only [pass] and nothing else: your reply won't show."
+      ),
     offline?.length &&
       L(
         `## Conectores desconectados\nVocê tem acesso a ${offline.join(', ')}, mas ${offline.length > 1 ? 'eles estão desconectados' : 'ele está desconectado'} agora, então as ferramentas não aparecem pra você. Se precisar, peça a ${me} pra reconectar em Conectores (não é falta de permissão).`,

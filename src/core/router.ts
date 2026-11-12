@@ -246,6 +246,26 @@ export function parseRoute(text: string, agents: Agent[], max = MAX_ROUTED): { a
   return { agents: picked.slice(0, max), reason: why }
 }
 
+// Who answers when no model could pick (it failed, it isn't signed in): plain rules, in order, each with its
+// reason, so the channel doesn't go quiet. The person's message answers the agent who spoke last there, if
+// that was recent: the one who asked a question, or the one the conversation is with. Otherwise no one,
+// and the person is told to mention someone.
+export const CONTINUITY_MS = 10 * 60_000
+export function ruleRoute(messages: Message[], agents: Agent[], now = Date.now()): { agents: Agent[]; reason: string } {
+  const human = [...messages].reverse().find((m) => m.author.kind === 'person' && m.text.trim())
+  const before = messages.filter((m) => !human || m.at <= human.at).reverse()
+  const lastAgent = before.find((m) => m.author.kind === 'agent' && m.text.trim() && agents.some((a) => a.id === (m.author as { id: string }).id))
+  if (lastAgent && now - lastAgent.at <= CONTINUITY_MS) {
+    const agent = agents.find((a) => a.id === (lastAgent.author as { id: string }).id)!
+    const mentionsOther = !!human && agents.some((a) => a.id !== agent.id && new RegExp(`@${a.handle}\\b`, 'i').test(human.text))
+    if (!mentionsOther) {
+      const asked = /\?\s*$/.test(lastAgent.text.trim())
+      return { agents: [agent], reason: asked ? L(`responde à pergunta de ${agent.name}`, `answers ${agent.name}'s question`) : L(`continua a conversa com ${agent.name}`, `continues the conversation with ${agent.name}`) }
+    }
+  }
+  return { agents: [], reason: '' }
+}
+
 // The router's turn without its prompt: the same for every message, so its process can start ahead.
 export const routerTurn = (model: string, cwd: string): TurnShape => ({ model, effort: 'low', system: routerSystem(), cwd })
 

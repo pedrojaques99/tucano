@@ -977,6 +977,7 @@ setInterval(() => {
 }, 3600_000).unref()
 
 const runner = new Runner({
+  routeDebounceMs: fake ? 0 : 2500, // a burst of messages is routed once (screens and tests stay instant)
   db,
   engines: engineImpls,
   settings: () => enginesReady.then(settings),

@@ -30,7 +30,7 @@ import { Followups, replyKey } from './followups'
 import { sessionConfig, Sessions, type SessionPlan, type Shown } from './sessions'
 import { formatAnswers, MAX_DESCRIPTION_LENGTH, MAX_LABEL_LENGTH, MAX_OPTIONS, MAX_QUESTION_LENGTH, MAX_QUESTIONS, MIN_OPTIONS, parseQuestions, questionHeadline, questionsAsText, questionsOf, type Answer, type Decision } from '../shared/questions'
 import { JEV_MODEL, routeJev } from './jev'
-import { ROUTER_HISTORY, route, routerTurn, screenHandoff } from './router'
+import { ROUTER_HISTORY, route, routerTurn, screenHandoff, ruleRoute } from './router'
 import { allowed, approvalHash, callClass, canonical, permits, runnerAllowed, runnerRules } from './policy'
 import { forReaders, innerActions, linksAccounts, perCallTool } from '../shared/composio'
 import { agentOwner, deciders, dmOwner, mentionedPeople, People, personNamed, presentPeople, promptPeople, requesterOf, routineBehalf, toPeopleOnly } from './people'
@@ -236,6 +236,7 @@ export interface RunnerDeps {
   settings: () => Promise<Settings> // resolves once engine detection is done
   emit: (e: CoreEvent) => void
   workDir: string // per-agent empty directories live here
+  routeDebounceMs?: number // a burst of messages in a channel is routed once, this long after the last (none in tests)
   dataDir?: string // the app's data: images I attach are kept in its artifact store; without it, they're dropped
   gateway?: Gateway // without it, agents get no tools at all
   connectors?: Connectors
@@ -324,7 +325,12 @@ export interface RoutineEvent {
 // `trigger`: the message this reply answers (a routed one): what people wrote after it, while it
 // waited its turn, isn't what it answers (another reply is, or it was merged in, see `waiting`).
 // `replyTo`: the message a person wrote that this reply answers (a mention's, a DM's), kept on its run.
-type ReplyOpts = { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean; threadId?: string; trigger?: string; replyTo?: string }
+// `routed`: the router picked it (not a mention), so it may pass. `handBackTo`: the agent that handed this off,
+// who hears back once it's done. `handedBack`: that hearing back (it may pass too).
+// A routed reply that had nothing to add: "[passo]" (or "[pass]") and nothing else.
+export const isPass = (text: string): boolean => /^\[?\s*(passo|pass|passa)\s*\]?\.?$/i.test(text.trim())
+
+type ReplyOpts = { depth: number; existing?: Message; task?: string; work?: string; routine?: boolean; threadId?: string; trigger?: string; replyTo?: string; routed?: boolean; handBackTo?: string; handedBack?: boolean }
 // A reply waiting for its agent to finish there. `merge`: a person's message, which a newer one of theirs takes over.
 type Parked = { agent: Agent; conv: Conversation; opts: ReplyOpts; urgent: boolean; merge: boolean; done: ((m: Message | undefined) => void)[] }
 type Control = { ctl: AbortController; msg: Message; reason?: 'stopped' | 'limit' | 'budget' | 'loop' | 'errors' | 'stall' | 'computer' | 'sleeping' }
@@ -604,7 +610,7 @@ export class Runner {
     if (responders.length === 0) {
       if (conv.kind === 'dm' || members.length === 1) responders = members
       else if (members.length > 1) {
-        void this.routeAndRun(conv, members, replyIn, mine.id)
+        this.routeSoon(conv, members, replyIn, mine.id)
         return
       }
     }
@@ -804,6 +810,27 @@ export class Runner {
     this.deps.emit({ type: 'message', message: { ...m } })
   }
 
+  // A burst of messages (one thought sent in three lines) is routed once, a moment after the last, for its
+  // last message: one pick and one set of replies instead of three. It counts as routing meanwhile, so the
+  // app knows something is still on its way.
+  private routeTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private routeSoon(conv: Conversation, members: Agent[], threadId: string | undefined, trigger: string): void {
+    const ms = this.deps.routeDebounceMs ?? 0
+    if (!ms) return void this.routeAndRun(conv, members, threadId, trigger)
+    const key = `${conv.id}|${threadId ?? ''}`
+    const had = this.routeTimers.get(key)
+    if (had) clearTimeout(had)
+    else this.routing++
+    this.routeTimers.set(
+      key,
+      setTimeout(() => {
+        this.routeTimers.delete(key)
+        this.routing--
+        void this.routeAndRun(conv, members, threadId, trigger)
+      }, ms)
+    )
+  }
+
   // The router reads the thread it picks for, and the conversation's other threads in a line each.
   private async routeAndRun(conv: Conversation, members: Agent[], threadId: string | undefined, trigger: string): Promise<void> {
     const { db, engines } = this.deps
@@ -839,14 +866,23 @@ export class Runner {
 
       const model = usable(modelInfo(settings.routerModel)) ?? modelInfo('haiku')!
       const status = settings.engines[model.engine]
-      if (!status.installed || !status.loggedIn) return fail(L(`o ${ENGINES[model.engine].label} não está pronto`, `${ENGINES[model.engine].label} isn't ready`))
+      if (!status.installed || !status.loggedIn) {
+        const ruled = ruleRoute(messages, members)
+        if (ruled.agents.length) return this.routed(conv, note, ruled.agents, trigger, `${ruled.reason} · ${L('o router não está pronto, uma regra decidiu', "the router isn't ready, a rule decided")}`)
+        return fail(L(`o ${ENGINES[model.engine].label} não está pronto`, `${ENGINES[model.engine].label} isn't ready`))
+      }
 
       const cwd = join(this.deps.workDir, '_router')
       mkdirSync(cwd, { recursive: true })
       const r = await route({ ...input, engine: engines[model.engine], model: model.id, cwd })
       if (r.usage) db.addReceipt({ ...r.usage, model: model.id, ms: r.ms, messageId: note.id, agentId: 'router', engine: model.engine, at: Date.now() })
       // In the words an agent's failure uses (the plan's limit, a login, the network), not the CLI's own.
-      if ('error' in r) return fail(friendly(r.error, { engine: ENGINES[model.engine].label, doing: L('escolher quem responde', 'picking who answers') }).text)
+      if ('error' in r) {
+        // The model couldn't pick: plain rules do, with their reason, before telling the person to mention someone.
+        const ruled = ruleRoute(messages, members)
+        if (ruled.agents.length) return this.routed(conv, note, ruled.agents, trigger, `${ruled.reason} · ${L('o modelo não respondeu, uma regra decidiu', "the model didn't answer, a rule decided")}`)
+        return fail(friendly(r.error, { engine: ENGINES[model.engine].label, doing: L('escolher quem responde', 'picking who answers') }).text)
+      }
       this.routed(conv, note, r.agents, trigger, `${r.reason}${fellBack}`)
     } catch (e) {
       fail(e instanceof Error ? e.message : String(e))
@@ -878,7 +914,7 @@ export class Runner {
           this.followups.reserve(key) // taken now: what comes meanwhile waits for this reply
           this.enqueue(() => {
             if (this.waiting.get(key) === slot) this.waiting.delete(key)
-            return this.execute(agent, conv, { depth: 1, threadId: note.threadId, trigger: slot.trigger, reserved: true })
+            return this.execute(agent, conv, { depth: 1, threadId: note.threadId, trigger: slot.trigger, reserved: true, routed: true })
           }, true)
         }
       }
@@ -2250,7 +2286,7 @@ ${note}`,
       builderGuide: proposes ? [builderGuide({ tuca: helps, me: settings.workspaceName }), helps && helperSection()].filter(Boolean).join('\n\n') : undefined
     }
     const system = systemPrompt(promptOpts)
-    const live = liveContext(promptOpts)
+    const live = liveContext({ ...promptOpts, mayPass: !!(opts.routed || opts.handedBack), handedBack: !!opts.handedBack })
     const { blocks, blockOf } = transcriptBlocks({ agent, conversation: conv, messages: history, agents: db.agents(), me: settings.workspaceName, people: named, routineOwner: scheduledBy, task, summary, images: names, thread, before: above, files: fileNames, searchable: canSeekThreads, unix: exposed.size > 0, live, ...(anchor && history.at(-1)?.id === anchor.id ? { answering: anchor } : {}) })
     const images: TurnImage[] = fresh
       .slice(-MAX_TURN_IMAGES)
@@ -2457,8 +2493,16 @@ ${note}`,
       const up = question && handedNow && askedTo.id === requester.id ? handedNow : undefined
       if (question && !up) this.asked(agent, msg, question, askedTo, requester, confirming, settings)
       // Streamed text keeps every model call of the turn; the final result may hold only the last one.
+      const final = msg.text.trim() ? msg.text.trim() : result.text.trim() ? result.text : (narration ?? '') // said it all before its last tool
+      // Picked by the router (or hearing back) with nothing to add: it stays quiet, and calls no one.
+      if ((opts.routed || opts.handedBack) && !question && !approval && isPass(final)) {
+        save({ text: '', run: { ...base, status: 'done', passed: true, steps: closeThinking('done', L('Passou: nada a acrescentar', 'Passed: nothing to add')) } })
+        const spent = db.agent(agent.id) // its usage went up all the same
+        if (spent) emit({ type: 'agent', agent: spent })
+        return msg
+      }
       save({
-        text: msg.text.trim() ? msg.text.trim() : result.text.trim() ? result.text : (narration ?? ''), // said it all before its last tool
+        text: final,
         run: { ...base, status: questions ? 'waiting_input' : waiting ? 'waiting_approval' : 'done', steps: closeThinking('done', L('Respondeu', 'Replied')) }
       })
       // The inbox shows a question's decisions from its message, which has them only now.
@@ -2479,6 +2523,16 @@ ${note}`,
         const next = this.mentions(agent, conv, msg).filter((a) => a.id !== handedNow?.from)
         if (next.length) void this.handOff(conv, msg, agent, next, opts.depth, chainDepthCap(settings.chainDepth), finished)
         else finished()
+        // A hand-off comes back: the agent that handed this off hears the result once, unless it was called again
+        // here already, and within the chain's cap. It may pass if there's nothing left for it to do.
+        const back = opts.handBackTo ? db.agent(opts.handBackTo) : undefined
+        if (back && !back.archived && !next.some((a) => a.id === back.id) && opts.depth < chainDepthCap(settings.chainDepth) && !this.paused) {
+          const key = replyKey(back.id, conv.id, msg.threadId)
+          if (!this.followups.busy(key)) {
+            this.followups.reserve(key)
+            this.enqueue(() => this.execute(back, conv, { depth: opts.depth + 1, work: msg.run?.work, threadId: msg.threadId, reserved: true, handedBack: true, replyTo: msg.id }))
+          }
+        }
       }
     } else {
       // What happened and what to do; the CLI's own words go folded under it.
@@ -3155,7 +3209,7 @@ ${note}`,
         if (busy.includes(a)) this.followups.add(keyOf(a), { depth: depth + 1, work: msg.run?.work })
         else {
           this.followups.reserve(keyOf(a))
-          this.enqueue(() => this.execute(a, conv, { depth: depth + 1, work: msg.run?.work, threadId: msg.threadId, reserved: true }))
+          this.enqueue(() => this.execute(a, conv, { depth: depth + 1, work: msg.run?.work, threadId: msg.threadId, reserved: true, handBackTo: agent.id }))
         }
       }
     } finally {

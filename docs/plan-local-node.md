@@ -48,6 +48,12 @@ Why this is cheaper and safer than a "remote core":
 4. **Local connectors through the node:** the node proxies the local app's connectors (premiere-pro, figma-desktop…) as its own tools, prefixed per connector. This avoids reconfiguring them on the VPS.
 5. **Offline:** a node call while the machine is off returns a clear error ("the Windows computer is off"), the step shows it, and the agent goes on. Phase 2: an optional queue ("try again when it comes online").
 
+## Status (2026-11-12)
+
+- **Phase 0:** the server runs on the VPS (systemd `tucano`, 127.0.0.1:7337, data migrated, Claude Code installed for the `tucano` user). Still the owner's: install Tailscale, sign Claude Code in, connect the apps.
+- **Phases 1–3: done.** `core/node-server.ts` exposes the terminal and files, the app's connected connectors (`<connector>__<tool>`, in the class set on this computer), the browser and the lent apps. A risky click or key goes through `node_approved`, which the server classes as sensitive.
+- **Phase 4: done as chosen ("do what it can").** A call to a node that's off tells the agent to go on without it and say what's left. Picking which agents use each computer is the grant on the node's connector. There's no queue: the owner picked "do what it can".
+
 ## Phases
 
 | Phase | Delivers | Effort |

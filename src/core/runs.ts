@@ -1995,6 +1995,20 @@ ${note}`,
           }
         } catch (e) {
           const why = callError(e)
+          // A node (a person's computer) that's off or out of the network: the agent goes on without it and
+          // says what's left, instead of retrying a machine that isn't there.
+          const node = this.deps.db.tools(hit.connector.id).some((t) => t.name === NODE_BASH)
+          const offline = node && /não está conectado|isn't connected|não respondeu|didn't answer|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENOTFOUND|fetch failed|timed out|offline/i.test(why)
+          if (offline) {
+            finish('error', L(`${hit.connector.name} está desligado ou fora da rede`, `${hit.connector.name} is off or out of the network`))
+            return textResult(
+              L(
+                `O computador "${hit.connector.name}" está desligado ou fora da rede agora. Não tente de novo nesta resposta: faça o que der sem ele e diga a ${settings.workspaceName} o que ficou pendente pra quando ele voltar.`,
+                `The computer "${hit.connector.name}" is off or out of the network right now. Don't retry it in this reply: do what you can without it and tell ${settings.workspaceName} what's left for when it's back.`
+              ),
+              true
+            )
+          }
           finish('error', why)
           return textResult(L(`A ferramenta falhou: ${why}`, `The tool failed: ${why}`), true)
         }

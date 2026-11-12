@@ -182,6 +182,8 @@ export type RunStatus = 'working' | 'waiting_input' | 'waiting_approval' | 'done
 export interface Run {
   status: RunStatus
   passed?: boolean // picked by the router (not by name), it had nothing to add: it stays quiet, out of the conversation
+  waitsQuota?: boolean // failed because the plan ran out (no reserve): it tries again by itself when the plan's window resets
+  repeated?: number // a routine's reply that said the same as its last ones: which time in a row (2: folded; 3: the routine paused)
   steps: Step[]
   endedAt?: number // when this reply ended, however it ended: where the conversation shows it (saidAt)
   receipt?: Receipt
@@ -1198,6 +1200,7 @@ export interface Report {
   agents: AgentReport[]
   skills: SkillReport[]
   work: { work: string; tokens: number; replies: number; agents: string[]; last: number }[]
+  people?: { person: string; tokens: number; replies: number; agents: string[] }[] // usage per person whose requests the agents worked on (with a team)
 }
 
 // ---------- the wiki ----------

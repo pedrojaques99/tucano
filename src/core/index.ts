@@ -41,7 +41,7 @@ import { LoginTerminal, type LoginKey } from './login-terminal'
 import { Push, pushUrl } from './push'
 import { fakeEngine } from './engines/fake'
 import { relocating } from './engines/relocate'
-import { DesktopApps, macApps, SELF } from './apps'
+import { appTools, DesktopApps, macApps, SELF } from './apps'
 import { linuxApps, windowsApps, type SystemApp } from './apps-os'
 import type { Engine } from './engines/types'
 import { ConnectorManager, notAuthorized } from './connectors'
@@ -64,7 +64,7 @@ import { applyForeignTeam, readForeignZip } from './agent-import'
 import { extractZip, zipFromBuffer, zipFromFile } from './zip'
 import { Telegram } from './telegram'
 import { mainCipher, plainCipher, Secrets } from './secrets'
-import { Browser, type BrowserHost } from './browser'
+import { Browser, browserTools, type BrowserHost } from './browser'
 import { findOnPath, isWin, loginShell, onPath, openWindowsConsole, osOf, shellCommand, terminalCommand } from './platform'
 import { ChromeBrowsers, hasChrome } from './chrome'
 import { checkFolder, Computers, folderName, type Shooter } from './computer'
@@ -805,7 +805,11 @@ const computers = new Computers({ db, dataDir, emit, shoot })
 // Its key is a secret; the port and on/off are settings. Not in server mode: a server is the one calling.
 const NODE_KEY = 'node:key'
 const NODE_PORT = 7441
-const nodeServer = new NodeServer(new MacComputer({ db, dataDir, emit, shoot }))
+const nodeServer = new NodeServer(new MacComputer({ db, dataDir, emit, shoot }), {
+  connectors: { list: () => connectors.list(), tools: (id) => db.tools(id), call: (id, name, args) => connectors.call(id, name, args) },
+  browser: { tools: browserTools, call: (agent, name, args, ctx) => browser.call(agent, name, args, ctx), approved: (agent, args) => browser.approved(agent, args) },
+  apps: { tools: appTools, call: (agent, name, args) => desktopApps.call(agent, name, args), approved: (agent, args) => desktopApps.approved(agent, args), lent: () => settings().node?.apps ?? [] }
+})
 let nodeError: string | undefined
 async function nodeKey(fresh = false): Promise<string> {
   const had = fresh ? undefined : await secrets.get(NODE_KEY)
@@ -816,7 +820,7 @@ async function nodeKey(fresh = false): Promise<string> {
 }
 async function nodeInfo(): Promise<NodeInfo> {
   const n = settings().node ?? { on: false, port: NODE_PORT }
-  return { on: n.on, port: n.port, running: nodeServer.running, key: n.on ? await nodeKey() : undefined, ...(nodeError ? { error: nodeError } : {}) }
+  return { on: n.on, port: n.port, apps: n.apps ?? [], running: nodeServer.running, key: n.on ? await nodeKey() : undefined, ...(nodeError ? { error: nodeError } : {}) }
 }
 async function applyNode(): Promise<void> {
   const n = settings().node
@@ -1798,9 +1802,9 @@ const api: Handlers = {
 
   // Checked with TypeSafe before it's saved; null removes it.
   nodeInfo: () => nodeInfo(),
-  setNode: async ({ on, port }) => {
+  setNode: async ({ on, port, apps }) => {
     const prev = settings().node ?? { on: false, port: NODE_PORT }
-    const next = { on, port: port && port > 1024 && port < 65536 ? Math.round(port) : prev.port }
+    const next = { on, port: port && port > 1024 && port < 65536 ? Math.round(port) : prev.port, apps: apps ?? prev.apps ?? [] }
     db.setSettings({ node: next })
     await applyNode()
     return nodeInfo()

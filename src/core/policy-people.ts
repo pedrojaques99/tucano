@@ -233,6 +233,9 @@ export const NEEDS: Record<Method, Need> = {
   engineModels: 'anyone', // the models a harness lists: an agent's page names its model with them
   testEngine: 'admin',
   setJevKey: 'admin',
+  nodeInfo: 'owner',
+  setNode: 'owner',
+  rotateNodeKey: 'owner',
   voiceDownload: 'admin',
   voiceCancelDownload: 'admin',
   voiceRemoveModel: 'admin',

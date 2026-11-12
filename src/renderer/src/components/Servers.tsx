@@ -5,7 +5,9 @@ import { L } from '../../../shared/lang'
 import { pairProblem } from '../../../shared/servers'
 import { confirmDialog } from './Dialogs'
 import { Card } from './Pages'
-import { Icon } from './ui'
+import { Icon, Toggle } from './ui'
+import { call } from '../rpc'
+import type { NodeInfo } from '../../../shared/types'
 
 type Server = { id: string; name: string; origin: string; open: boolean }
 
@@ -150,5 +152,69 @@ export function ServerBar(): ReactNode {
         <Icon name="laptop" size={14} /> {L('Voltar pra este computador', 'Back to this computer')}
       </button>
     </div>
+  )
+}
+
+// This computer as a node of a server's Tucano (docs/plan-local-node.md): the server's agents reach this
+// machine's terminal and files like a connector, with the same autonomy and approvals as here. Off by
+// default; the way in is a private network (Tailscale), with the key below.
+export function NodeCard(): ReactNode {
+  const [info, setInfo] = useState<NodeInfo | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    void call('nodeInfo').then(setInfo, () => {})
+  }, [])
+  if (!info) return null
+  const run = (p: Promise<NodeInfo>): void => {
+    setBusy(true)
+    void p.then(setInfo, () => {}).finally(() => setBusy(false))
+  }
+  const copy = (text: string): void => void navigator.clipboard.writeText(text).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))
+  return (
+    <Card
+      title={L('Este computador como nó', 'This computer as a node')}
+      lead={L('Os agentes de um Tucano num servidor usam o terminal e os arquivos deste computador, com a mesma autonomia daqui.', "The agents of a Tucano on a server use this computer's terminal and files, with the same autonomy as here.")}
+      action={<Toggle on={info.on} disabled={busy} label={L('Este computador como nó', 'This computer as a node')} onChange={(on) => run(call('setNode', { on }))} />}
+    >
+      {info.error && <p className="field__error">{info.error}</p>}
+      {info.on && info.running && (
+        <div className="node-card">
+          <div className="node-card__row">
+            <span className="muted small">{L('Escutando em', 'Listening on')}</span>
+            <code>http://127.0.0.1:{info.port}/mcp</code>
+          </div>
+          {info.key && (
+            <div className="node-card__row">
+              <span className="muted small">{L('Chave', 'Key')}</span>
+              <code className="node-card__key">{info.key.slice(0, 6)}…{info.key.slice(-4)}</code>
+              <button className="btn btn--sm" onClick={() => copy(info.key!)}>
+                {copied ? L('Copiada', 'Copied') : L('Copiar', 'Copy')}
+              </button>
+              <button
+                className="btn btn--sm btn--ghost"
+                disabled={busy}
+                onClick={() =>
+                  void confirmDialog({
+                    title: L('Trocar a chave?', 'Change the key?'),
+                    body: L('A chave atual para de funcionar: cole a nova no conector do servidor.', "The current key stops working: paste the new one into the server's connector."),
+                    confirm: L('Trocar a chave', 'Change the key')
+                  }).then((ok) => ok && run(call('rotateNodeKey')))
+                }
+              >
+                {L('Trocar', 'Change')}
+              </button>
+            </div>
+          )}
+          <ol className="small node-card__steps">
+            <li>
+              {L('Neste computador, com o Tailscale aberto:', 'On this computer, with Tailscale open:')} <code>tailscale serve --bg {info.port}</code>
+            </li>
+            <li>{L('No Tucano do servidor: Conectores › Adicionar personalizado › Remoto, com o endereço https://<este-computador>.<sua-rede>.ts.net/mcp e autenticação Token, colando a chave.', "In the server's Tucano: Connectors › Add custom › Remote, with the address https://<this-computer>.<your-tailnet>.ts.net/mcp and Token authentication, pasting the key.")}</li>
+            <li>{L('Dê acesso aos agentes que vão usar este computador, em Ferramentas.', 'Give access to the agents that will use this computer, under Tools.')}</li>
+          </ol>
+        </div>
+      )}
+    </Card>
   )
 }

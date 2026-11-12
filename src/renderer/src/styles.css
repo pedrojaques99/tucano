@@ -13654,3 +13654,19 @@ button.agent-card__now:hover {
   gap: 8px;
   margin-top: 6px;
 }
+
+.node-card__twice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--warn-soft, var(--hover));
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.node-card__twice > span {
+  flex: 1 1 260px;
+}
